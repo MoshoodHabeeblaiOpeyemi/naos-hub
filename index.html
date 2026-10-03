@@ -1,11 +1,59 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-NG">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>naos-hub</title>
+
+    <title>NAOS Unilorin Chapter — National Association of Oyo Students</title>
+    <meta
+      name="description"
+      content="Official digital hub for the National Association of Oyo Students (NAOS), University of Ilorin Chapter. Events, executives, constitution and membership information."
+    />
+
+    <!-- Paint the mobile browser bar to match the brand green. -->
+    <meta name="theme-color" content="#14532d" />
+
+    <!--
+      Canonical URL.
+      Added now, before the custom domain exists, so that when naosunilorin.org
+      goes live the Vercel preview URL does not get indexed as a duplicate.
+      Update the href if the domain changes.
+    -->
+    <link rel="canonical" href="https://naosunilorin.org" />
+
+    <!--
+      Open Graph / link previews.
+      Our main distribution channel is WhatsApp, and its preview crawler does
+      NOT run JavaScript — it reads this static block only. og:image is the
+      single most important tag here: without it every shared link renders as
+      a blank grey box instead of showing the NAOS crest.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="NAOS Unilorin" />
+    <meta property="og:title" content="NAOS Unilorin Chapter" />
+    <meta
+      property="og:description"
+      content="Official digital hub for the National Association of Oyo Students (NAOS), University of Ilorin Chapter."
+    />
+    <meta property="og:url" content="https://naosunilorin.org" />
+    <meta property="og:image" content="/images/og-image.jpg" />
+    <meta
+      property="og:image:alt"
+      content="National Association of Oyo Students — University of Ilorin Chapter"
+    />
+
+    <!-- X / Twitter card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="NAOS Unilorin Chapter" />
+    <meta
+      name="twitter:description"
+      content="Official digital hub for NAOS, University of Ilorin Chapter."
+    />
+    <meta name="twitter:image" content="/images/og-image.jpg" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
+
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>

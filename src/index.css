@@ -1,7 +1,79 @@
 @import "tailwindcss";
 
+/*
+ * NAOS Unilorin design tokens.
+ * Provided by the association brand guide. Do not rename these — every
+ * component depends on the `naos-*` class names they generate.
+ */
 @theme {
   --color-naos-green: #14532d;
-  --color-naos-gold: #eab308;
   --color-naos-dark: #0f3d23;
-}; 
+  --color-naos-light: #166534;
+  --color-naos-gold: #eab308;
+  --color-naos-white: #ffffff;
+  --color-naos-gray: #f3f4f6;
+  --color-naos-text: #1f2937;
+
+  /*
+   * ACCESSIBILITY FIX (added by the developer, not in the original guide).
+   * Brand gold #eab308 scores ~1.9:1 against white and FAILS WCAG AA.
+   * Gold is safe on large headings and on dark green, but NEVER for small
+   * body text on white. Use naos-gold-dark (6.8:1) for that instead.
+   */
+  --color-naos-gold-dark: #854d0e;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    /* Stop anchor targets hiding underneath the sticky navbar. */
+    scroll-padding-top: 5rem;
+  }
+
+  body {
+    background-color: var(--color-naos-white);
+    color: var(--color-naos-text);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Respect users who have asked the OS to reduce motion. */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  /* Visible keyboard focus everywhere — required for accessibility. */
+  :focus-visible {
+    outline: 3px solid var(--color-naos-gold);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+/* Utility for screen-reader-only text (visually hidden but read aloud). */
+@utility sr-only-focusable {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+
+  &:focus,
+  &:focus-visible {
+    position: fixed;
+    top: 0.75rem;
+    left: 0.75rem;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+}
