@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+@theme {
+  --color-naos-green: #14532d;
+  --color-naos-gold: #eab308;
+  --color-naos-dark: #0f3d23;
+}; 
