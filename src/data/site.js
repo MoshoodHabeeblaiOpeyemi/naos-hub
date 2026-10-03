@@ -15,9 +15,6 @@
  *   Please keep it that way. Do not add JSX, components or fetch() calls here.
  */
 
-/** Whitespace-only placeholder text, so the site never ships with lorem ipsum. */
-export const PLACEHOLDER = 'Pending official details';
-
 export const site = {
   name: 'National Association of Oyo Students',
   shortName: 'NAOS',
@@ -32,7 +29,11 @@ export const site = {
   /**
    * 'placeholder' -> the site is running on unreviewed sample content.
    * Change to 'verified' ONLY when real names, dates and documents are in.
-   * Docs/DEVELOPER-HANDOVER.md explains the banner this controls.
+   *
+   * While this is 'placeholder', a yellow warning strip is rendered at the top
+   * of the page in DEVELOPMENT builds only. It is stripped from production
+   * bundles, so it can never be seen by a visitor — but you cannot miss it
+   * while you are working. See docs/DEVELOPER-HANDOVER.md §9.
    */
   contentStatus: 'placeholder',
 

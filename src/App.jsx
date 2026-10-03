@@ -1,3 +1,4 @@
+import PlaceholderBanner from './components/PlaceholderBanner.jsx';
 import Navbar from './components/Navbar.jsx';
 import Hero from './components/Hero.jsx';
 import Stats from './components/Stats.jsx';
@@ -21,6 +22,8 @@ export default function App() {
       <a href="#main" className="sr-only-focusable">
         Skip to main content
       </a>
+
+      <PlaceholderBanner />
 
       <Navbar />
 

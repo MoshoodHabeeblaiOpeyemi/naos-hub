@@ -121,7 +121,9 @@ better no button than a broken one. Add the address as a value to make it show.
 - [ ] `contentStatus: 'placeholder'` changed to `'verified'` in `site.js`
 
 That last one matters — it is how the site keeps track of whether its content
-has been checked by a human.
+has been checked by a human. While it is still `'placeholder'`, running
+`npm run dev` shows a yellow warning strip at the top of the page so you
+cannot miss it. That strip never appears on the live site.
 
 ---
 
