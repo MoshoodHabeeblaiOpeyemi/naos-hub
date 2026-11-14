@@ -5,7 +5,7 @@ import { site } from '../data/site.js';
  * Sticky top navigation.
  * Mobile-first: the links collapse behind a toggle below the `md` breakpoint.
  */
-export default function Navbar() {
+export default function Navbar({ setShowAuth }) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -66,9 +66,7 @@ export default function Navbar() {
           aria-controls="primary-menu"
           className="inline-flex h-11 w-11 items-center justify-center rounded-md text-white transition-colors hover:bg-white/10 md:hidden"
         >
-          <span className="sr-only">
-            {open ? 'Close main menu' : 'Open main menu'}
-          </span>
+          <span className="sr-only">{open ? 'Close main menu' : 'Open main menu'}</span>
           <svg
             aria-hidden="true"
             viewBox="0 0 24 24"
@@ -84,6 +82,27 @@ export default function Navbar() {
               <path d="M4 7h16M4 12h16M4 17h16" />
             )}
           </svg>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setShowAuth(true)}
+          className="hidden md:flex items-center gap-2 px-4 py-2 rounded-md bg-white/10 text-white font-medium text-sm hover:bg-white/20 transition-colors"
+        >
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 6.253v13m0-13C10.832 8.988 9.246 9 7.5 9S4.168 8.988 3 6.253m0 0a6 6 0 0110.748 0M3 6.253v13m0-13C10.832 8.988 9.246 9 7.5 9S4.168 8.988 3 6.253m0 0a6 6 0 0110.748 0M3 6.253v13m0-13C10.832 8.988 9.246 9 7.5 9S4.168 8.988 3 6.253"
+            />
+          </svg>
+          Login / Join
         </button>
 
         <ul
@@ -103,6 +122,14 @@ export default function Navbar() {
               </a>
             </li>
           ))}
+          <li>
+            <button
+              onClick={() => { setOpen(false); setShowAuth(true); }}
+              className="block w-full rounded-md px-3 py-2 text-sm font-medium text-white/90 transition-colors hover:bg-white/10 hover:text-naos-gold md:hidden"
+            >
+              Login / Join
+            </button>
+          </li>
         </ul>
       </nav>
     </header>
