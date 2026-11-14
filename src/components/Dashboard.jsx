@@ -1,9 +1,28 @@
-import { auth } from '../firebase';
+import { useState, useEffect } from 'react';
+import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard({ setIsLoggedIn }) {
   const navigate = useNavigate();
+  const [profile, setProfile] = useState(null);
+
+  useEffect(() => {
+    async function fetchProfile() {
+      if (auth?.currentUser && db) {
+        try {
+          const snap = await getDoc(doc(db, 'users', auth.currentUser.uid));
+          if (snap.exists()) {
+            setProfile(snap.data());
+          }
+        } catch (err) {
+          console.error('Failed to fetch profile:', err);
+        }
+      }
+    }
+    fetchProfile();
+  }, []);
 
   const handleLogout = async () => {
     if (auth) {
@@ -17,7 +36,7 @@ export default function Dashboard({ setIsLoggedIn }) {
     navigate('/');
   };
 
-  const userEmail = auth?.currentUser?.email;
+  const displayName = profile?.name || auth?.currentUser?.email?.split('@')[0] || 'Member';
 
   const dashboardCards = [
     {
@@ -55,24 +74,55 @@ export default function Dashboard({ setIsLoggedIn }) {
   return (
     <section id="dashboard" className="py-12 bg-naos-gray/30 min-h-[calc(100vh-16rem)]">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        {/* Header with profile banner */}
         <div className="mb-8 flex flex-col justify-between gap-4 border-b border-naos-gray/40 pb-6 sm:flex-row sm:items-center">
           <div>
-            <h1 className="text-3xl font-bold text-naos-dark">
-              Member Dashboard
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-naos-dark">
+                Member Dashboard
+              </h1>
+              <span className="rounded-full bg-naos-gold/20 px-3 py-0.5 text-xs font-semibold text-naos-dark capitalize border border-naos-gold/40">
+                {profile?.role || 'member'}
+              </span>
+            </div>
             <p className="mt-1 text-sm text-naos-text">
-              Welcome back{userEmail ? `, ${userEmail}` : ''}! Access your membership privileges and association resources.
+              Welcome back, <span className="font-semibold text-naos-dark">{displayName}</span>! Access your membership privileges and association resources.
             </p>
           </div>
           <button
             type="button"
             onClick={handleLogout}
-            className="inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 sm:w-auto"
+            className="inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 sm:w-auto cursor-pointer"
           >
             Logout
           </button>
         </div>
 
+        {/* Member Academic Summary Strip if profile loaded */}
+        {profile && (
+          <div className="mb-8 grid grid-cols-2 sm:grid-cols-4 gap-4 bg-white p-4 rounded-lg border border-naos-gray/40 shadow-xs">
+            <div>
+              <span className="block text-[11px] font-semibold uppercase text-naos-text/70">Matric No.</span>
+              <span className="font-bold text-naos-dark text-sm sm:text-base">{profile.matric || 'N/A'}</span>
+            </div>
+            <div>
+              <span className="block text-[11px] font-semibold uppercase text-naos-text/70">Current Level</span>
+              <span className="font-bold text-naos-green text-sm sm:text-base">{profile.level || 'N/A'}</span>
+            </div>
+            <div>
+              <span className="block text-[11px] font-semibold uppercase text-naos-text/70">Department</span>
+              <span className="font-bold text-naos-dark text-sm sm:text-base truncate block" title={profile.dept}>
+                {profile.dept || 'N/A'}
+              </span>
+            </div>
+            <div>
+              <span className="block text-[11px] font-semibold uppercase text-naos-text/70">LGA</span>
+              <span className="font-bold text-naos-dark text-sm sm:text-base">{profile.lga || 'N/A'}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Cards Grid */}
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {dashboardCards.map((card) => (
             <div

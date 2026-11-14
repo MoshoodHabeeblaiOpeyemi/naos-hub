@@ -3,6 +3,10 @@ import { auth, db } from '../firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
+import { calculateAcademicLevel } from '../utils/academicLevel';
+
+const VALID_LGAS = ['Oyo East', 'Oyo West', 'Afijio', 'Atiba'];
+const ENTRY_YEARS = [2020, 2021, 2022, 2023, 2024, 2025, 2026];
 
 export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode }) {
   const navigate = useNavigate();
@@ -10,12 +14,17 @@ export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
-  const [level, setLevel] = useState('100');
+  const [matric, setMatric] = useState('');
   const [dept, setDept] = useState('');
+  const [entryYear, setEntryYear] = useState('');
+  const [courseDuration, setCourseDuration] = useState('');
   const [lga, setLGA] = useState('');
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Live calculation of current academic level
+  const calculatedLevel = calculateAcademicLevel(entryYear, courseDuration);
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -37,8 +46,24 @@ export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode }) {
       return;
     }
 
-    if (!name.trim() || !dept.trim() || !lga.trim() || !phone.trim()) {
+    if (!name.trim() || !dept.trim() || !phone.trim() || !matric.trim()) {
       setMessage('Please fill in all required fields.');
+      return;
+    }
+
+    if (!entryYear) {
+      setMessage('Please select your Year of Entry.');
+      return;
+    }
+
+    if (!courseDuration) {
+      setMessage('Please select your Course Duration.');
+      return;
+    }
+
+    // Strict LGA validation
+    if (!lga || !VALID_LGAS.includes(lga)) {
+      setMessage('Please select a valid Oyo State LGA');
       return;
     }
 
@@ -47,13 +72,18 @@ export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode }) {
       const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const uid = userCredential.user.uid;
 
+      // Save user record to Firestore with calculated academic level & member role
       await setDoc(doc(db, 'users', uid), {
         name: name.trim(),
-        level: level.trim(),
+        matric: matric.trim().toUpperCase(),
         dept: dept.trim(),
+        entryYear: Number(entryYear),
+        courseDuration: Number(courseDuration),
+        level: calculatedLevel,
         lga: lga.trim(),
         phone: phone.trim(),
         email: email.trim(),
+        role: 'member',
         createdAt: new Date().toISOString(),
       });
 
@@ -88,7 +118,7 @@ export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode }) {
       aria-labelledby="register-modal-title"
     >
       <div
-        className="relative bg-naos-white rounded-xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-naos-gray/30 my-8"
+        className="relative bg-naos-white rounded-xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-naos-gray/30 my-8 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -102,11 +132,11 @@ export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode }) {
           </svg>
         </button>
 
-        <h2 id="register-modal-title" className="text-2xl font-bold text-naos-dark mb-2 text-center">
+        <h2 id="register-modal-title" className="text-2xl font-bold text-naos-dark mb-1 text-center">
           Member Registration
         </h2>
-        <p className="text-xs text-naos-text text-center mb-6">
-          Register to join the digital portal for Oyo State Students, Unilorin
+        <p className="text-xs text-naos-text text-center mb-5">
+          Join the digital portal for Oyo State Students, Unilorin
         </p>
 
         {message && (
@@ -122,6 +152,7 @@ export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode }) {
         )}
 
         <form onSubmit={handleRegister} className="space-y-3">
+          {/* Full Name */}
           <div>
             <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-name">
               Full Name
@@ -136,6 +167,7 @@ export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode }) {
             />
           </div>
 
+          {/* Email & Phone */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-email">
@@ -168,7 +200,21 @@ export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode }) {
             </div>
           </div>
 
+          {/* Matric Number & Department */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-matric">
+                Matric Number
+              </label>
+              <input
+                id="reg-matric"
+                value={matric}
+                onChange={(e) => setMatric(e.target.value)}
+                required
+                placeholder="e.g. 21/52HA045"
+                className="w-full border border-naos-gray rounded-md px-3 py-2 text-sm text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition uppercase"
+              />
+            </div>
             <div>
               <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-dept">
                 Department
@@ -182,41 +228,79 @@ export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode }) {
                 className="w-full border border-naos-gray rounded-md px-3 py-2 text-sm text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition"
               />
             </div>
+          </div>
+
+          {/* Academic Logic: Year of Entry & Course Duration */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-level">
-                Level
+              <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-entry-year">
+                Year of Entry
               </label>
               <select
-                id="reg-level"
-                value={level}
-                onChange={(e) => setLevel(e.target.value)}
+                id="reg-entry-year"
+                value={entryYear}
+                onChange={(e) => setEntryYear(e.target.value)}
                 required
                 className="w-full border border-naos-gray rounded-md px-3 py-2 text-sm text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition bg-white"
               >
-                <option value="100">100 Level</option>
-                <option value="200">200 Level</option>
-                <option value="300">300 Level</option>
-                <option value="400">400 Level</option>
-                <option value="500">500 Level</option>
-                <option value="PG">Postgraduate</option>
+                <option value="" disabled>Select Entry Year</option>
+                {ENTRY_YEARS.map((yr) => (
+                  <option key={yr} value={yr}>
+                    {yr}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-duration">
+                Course Duration
+              </label>
+              <select
+                id="reg-duration"
+                value={courseDuration}
+                onChange={(e) => setCourseDuration(e.target.value)}
+                required
+                className="w-full border border-naos-gray rounded-md px-3 py-2 text-sm text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition bg-white"
+              >
+                <option value="" disabled>Select Duration</option>
+                <option value="4">4 Years</option>
+                <option value="5">5 Years</option>
               </select>
             </div>
           </div>
 
+          {/* Dynamic Level Calculation Display */}
+          {calculatedLevel && (
+            <div className="rounded-md bg-naos-green/10 border border-naos-green/30 px-3 py-2 text-xs flex items-center justify-between text-naos-green font-medium">
+              <span>Calculated Current Level:</span>
+              <span className="font-bold bg-white px-2.5 py-0.5 rounded shadow-xs text-naos-dark border border-naos-green/20">
+                {calculatedLevel}
+              </span>
+            </div>
+          )}
+
+          {/* Strict LGA Dropdown */}
           <div>
             <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-lga">
               LGA (Local Government Area in Oyo State)
             </label>
-            <input
+            <select
               id="reg-lga"
               value={lga}
               onChange={(e) => setLGA(e.target.value)}
               required
-              placeholder="e.g. Ibadan North, Ogbomoso South, Oyo East..."
-              className="w-full border border-naos-gray rounded-md px-3 py-2 text-sm text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition"
-            />
+              className="w-full border border-naos-gray rounded-md px-3 py-2 text-sm text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition bg-white"
+            >
+              <option value="" disabled>Select LGA</option>
+              {VALID_LGAS.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
           </div>
 
+          {/* Password & Confirm Password */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-password">
@@ -259,7 +343,7 @@ export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode }) {
           </button>
         </form>
 
-        <div className="mt-5 text-center text-sm text-naos-text">
+        <div className="mt-4 text-center text-sm text-naos-text">
           <span>Already have an account? </span>
           <button
             type="button"
