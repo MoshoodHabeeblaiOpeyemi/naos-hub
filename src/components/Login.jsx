@@ -12,6 +12,12 @@ export default function Login({ setShowAuth, setIsLoggedIn }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Guard: Firebase not configured
+    if (!auth || !db) {
+      setMessage("Firebase is not configured on this deployment. Please contact the developer.");
+      return;
+    }
+
     try {
       if (isRegister) {
         // Register user with email/password

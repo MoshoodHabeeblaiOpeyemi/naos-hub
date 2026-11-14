@@ -2,6 +2,9 @@
  * Firebase Configuration for NAOS Hub
  * Initializes Firebase using environment variables.
  * Import this wherever you need auth or firestore.
+ *
+ * If env vars are missing (e.g. on Vercel without config),
+ * auth and db are exported as null so the public site still renders.
  */
 
 import { initializeApp } from "firebase/app";
@@ -18,28 +21,33 @@ const requiredEnvs = [
   "VITE_FIREBASE_APP_ID",
 ];
 
-for (const key of requiredEnvs) {
-  if (!import.meta.env[key]) {
-    console.warn(
-      `[Firebase] Missing environment variable: ${key}. Auth and Firestore will not work.`
-    );
+const missing = requiredEnvs.filter((key) => !import.meta.env[key]);
+
+let app = null;
+let auth = null;
+let db = null;
+
+if (missing.length > 0) {
+  console.warn(
+    `[Firebase] Missing environment variables: ${missing.join(", ")}. Auth and Firestore will not work. Public site will still render.`
+  );
+} else {
+  try {
+    const firebaseConfig = {
+      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+      storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+      appId: import.meta.env.VITE_FIREBASE_APP_ID,
+      measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+    };
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+  } catch (err) {
+    console.warn("[Firebase] Failed to initialize Firebase:", err.message);
   }
 }
 
-// Firebase configuration from environment variables (Vite uses import.meta.env)
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-
-export { app };
+export { app, auth, db };

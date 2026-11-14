@@ -10,6 +10,7 @@ import Contact from './components/Contact.jsx';
 import Footer from './components/Footer.jsx';
 import Login from './components/Login.jsx';
 import Register from './components/Register.jsx';
+import { auth } from './firebase';
 import { useState } from "react";
 
 /**
@@ -122,8 +123,8 @@ export default function App() {
 
       <Footer />
 
-      {/* Auth overlay (Login) */}
-      {!isLoggedIn && showAuth && (
+      {/* Auth overlay (Login) — only if Firebase is configured */}
+      {auth && !isLoggedIn && showAuth && (
         <div
           className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
           role="dialog"
@@ -158,8 +159,8 @@ export default function App() {
         </div>
       )}
 
-      {/* Register overlay */}
-      {!isLoggedIn && showAuth && (
+      {/* Register overlay — only if Firebase is configured */}
+      {auth && !isLoggedIn && showAuth && (
         <div
           className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
           role="dialog"

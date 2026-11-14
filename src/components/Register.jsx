@@ -19,6 +19,12 @@ export default function Register({ setShowAuth, setIsLoggedIn }) {
   const handleRegister = async (e) => {
     e.preventDefault();
 
+    // Guard: Firebase not configured
+    if (!auth || !db) {
+      setMessage("Firebase is not configured on this deployment. Please contact the developer.");
+      return;
+    }
+
     if (password !== confirmPassword) {
       setMessage("Passwords do not match");
       return;
