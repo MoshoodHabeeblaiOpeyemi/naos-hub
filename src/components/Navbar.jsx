@@ -8,9 +8,12 @@ import { signOut } from 'firebase/auth';
  * Sticky top navigation.
  * Mobile-first: the links collapse behind a toggle below the `md` breakpoint.
  */
-export default function Navbar({ setShowAuth, isLoggedIn, setIsLoggedIn }) {
+export default function Navbar({ setShowAuth, isLoggedIn, setIsLoggedIn, userProfile }) {
   const [open, setOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
+  const [scrolled, setScrolled] = useState(() => (typeof window !== 'undefined' ? window.scrollY > 8 : false));
+
+  const role = (userProfile?.role || '').toLowerCase();
+  const isAdmin = role === 'pro1' || role === 'pro2';
 
   // Close the mobile menu whenever the viewport grows to desktop size,
   // otherwise it stays "open" and is invisible once the links return.
@@ -25,7 +28,6 @@ export default function Navbar({ setShowAuth, isLoggedIn, setIsLoggedIn }) {
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
-    onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
@@ -102,6 +104,14 @@ export default function Navbar({ setShowAuth, isLoggedIn, setIsLoggedIn }) {
         <div className="hidden md:flex items-center gap-3">
           {isLoggedIn ? (
             <>
+              {isAdmin && (
+                <Link
+                  to="/admin"
+                  className="px-3 py-2 rounded-md bg-naos-gold text-naos-dark font-bold text-xs hover:bg-yellow-400 transition-colors shadow-xs"
+                >
+                  Admin Panel
+                </Link>
+              )}
               <Link
                 to="/dashboard"
                 className="px-4 py-2 rounded-md bg-white/15 text-white font-medium text-sm hover:bg-white/25 transition-colors"
@@ -160,6 +170,15 @@ export default function Navbar({ setShowAuth, isLoggedIn, setIsLoggedIn }) {
           <li className="pt-2 border-t border-white/10 md:hidden">
             {isLoggedIn ? (
               <div className="flex flex-col gap-2">
+                {isAdmin && (
+                  <Link
+                    to="/admin"
+                    onClick={() => setOpen(false)}
+                    className="block rounded-md bg-naos-gold px-3 py-2 text-center text-sm font-bold text-naos-dark hover:bg-yellow-400"
+                  >
+                    Admin Panel
+                  </Link>
+                )}
                 <Link
                   to="/dashboard"
                   onClick={() => setOpen(false)}
