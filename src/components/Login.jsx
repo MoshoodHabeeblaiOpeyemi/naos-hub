@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { auth, db } from "../firebase";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 
 export default function Login({ setShowAuth, setIsLoggedIn }) {
