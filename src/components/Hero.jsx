@@ -7,7 +7,7 @@ import { site } from '../data/site.js';
  * Note: the internal dev roadmap is deliberately NOT shown here. Public visitors
  * should see what NAOS is, not what NAOS has not finished building.
  */
-export default function Hero() {
+export default function Hero({ setShowAuth }) {
   return (
     <section
       aria-labelledby="hero-heading"
@@ -49,12 +49,13 @@ export default function Hero() {
         <p className="mt-2 text-base text-white/75 sm:text-lg">{site.slogan}</p>
 
         <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <a
-            href="#contact"
-            className="inline-flex w-full items-center justify-center rounded-md bg-naos-gold px-8 py-3 text-base font-bold text-naos-dark transition-colors hover:bg-yellow-400 sm:w-auto"
+          <button
+            type="button"
+            onClick={() => (setShowAuth ? setShowAuth(true) : null)}
+            className="inline-flex w-full items-center justify-center rounded-md bg-naos-gold px-8 py-3 text-base font-bold text-naos-dark transition-colors hover:bg-yellow-400 sm:w-auto cursor-pointer"
           >
             Join NAOS
-          </a>
+          </button>
           <a
             href="#executives"
             className="inline-flex w-full items-center justify-center rounded-md border-2 border-white/40 px-8 py-3 text-base font-semibold text-white transition-colors hover:border-white hover:bg-white/10 sm:w-auto"

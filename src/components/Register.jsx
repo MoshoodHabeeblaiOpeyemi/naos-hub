@@ -1,199 +1,275 @@
-import { useState } from "react";
-import { auth, db } from "../firebase";
-import {
-  createUserWithEmailAndPassword,
-} from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { useState } from 'react';
+import { auth, db } from '../firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
 
-export default function Register({ setShowAuth, setIsLoggedIn }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [name, setName] = useState("");
-  const [level, setLevel] = useState("");
-  const [dept, setDept] = useState("");
-  const [lga, setLGA] = useState("");
-  const [phone, setPhone] = useState("");
-  const [message, setMessage] = useState("");
+export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode }) {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState('');
+  const [level, setLevel] = useState('100');
+  const [dept, setDept] = useState('');
+  const [lga, setLGA] = useState('');
+  const [phone, setPhone] = useState('');
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    setMessage('');
 
     // Guard: Firebase not configured
     if (!auth || !db) {
-      setMessage("Firebase is not configured on this deployment. Please contact the developer.");
+      setMessage('Firebase is not configured on this deployment. Please configure environment variables.');
       return;
     }
 
     if (password !== confirmPassword) {
-      setMessage("Passwords do not match");
+      setMessage('Passwords do not match.');
       return;
     }
 
-    if (!name.trim() || !level.trim() || !dept.trim() || !lga.trim() || !phone.trim()) {
-      setMessage("Please fill in all fields");
+    if (password.length < 6) {
+      setMessage('Password must be at least 6 characters long.');
       return;
     }
 
+    if (!name.trim() || !dept.trim() || !lga.trim() || !phone.trim()) {
+      setMessage('Please fill in all required fields.');
+      return;
+    }
+
+    setLoading(true);
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const uid = userCredential.user.uid;
 
-      await setDoc(doc(db, "users", uid), {
+      await setDoc(doc(db, 'users', uid), {
         name: name.trim(),
         level: level.trim(),
         dept: dept.trim(),
         lga: lga.trim(),
         phone: phone.trim(),
         email: email.trim(),
-        createdAt: new Date(),
+        createdAt: new Date().toISOString(),
       });
 
-      setMessage("Account created successfully! You can now login.");
-        setIsLoggedIn(true);
-        setShowAuth(false);
+      setMessage('Account created successfully!');
+      setIsLoggedIn(true);
+      setShowAuth(false);
+      navigate('/dashboard');
     } catch (err) {
-      console.error(err);
-      setMessage(err.message || "Registration failed");
+      console.error('Registration error:', err);
+      let errorMsg = 'Failed to create account. Please try again.';
+      if (err.code === 'auth/email-already-in-use') {
+        errorMsg = 'This email address is already registered. Please sign in instead.';
+      } else if (err.code === 'auth/invalid-email') {
+        errorMsg = 'Please enter a valid email address.';
+      } else if (err.code === 'auth/weak-password') {
+        errorMsg = 'Password is too weak. Please use a stronger password.';
+      } else if (err.message) {
+        errorMsg = err.message;
+      }
+      setMessage(errorMsg);
+    } finally {
+      setLoading(false);
     }
   };
-return (
-    <div className="bg-naos-white p-6 rounded-lg shadow-xl max-w-md w-full">
-        <h2 className="text-2xl font-bold text-naos-dark mb-6 text-center">
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto"
+      onClick={() => setShowAuth(false)}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="register-modal-title"
+    >
+      <div
+        className="relative bg-naos-white rounded-xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-naos-gray/30 my-8"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={() => setShowAuth(false)}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1 rounded-md transition"
+          aria-label="Close modal"
+        >
+          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <h2 id="register-modal-title" className="text-2xl font-bold text-naos-dark mb-2 text-center">
           Member Registration
         </h2>
+        <p className="text-xs text-naos-text text-center mb-6">
+          Register to join the digital portal for Oyo State Students, Unilorin
+        </p>
 
         {message && (
-          <div className={`mb-4 p-3 rounded ${message.includes("successfully") ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+          <div
+            className={`mb-4 p-3 rounded text-sm ${
+              message.includes('successfully')
+                ? 'bg-green-100 text-green-800 border border-green-200'
+                : 'bg-red-100 text-red-800 border border-red-200'
+            }`}
+          >
             {message}
           </div>
         )}
 
-        <form onSubmit={handleRegister} className="space-y-4">
+        <form onSubmit={handleRegister} className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-naos-text mb-2">
-              Email
-            </label>
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              type="email"
-              required
-              className="w-full border border-naos-gray rounded px-3 py-2"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-naos-text mb-2">
-              Password
-            </label>
-            <input
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              type="password"
-              required
-              className="w-full border border-naos-gray rounded px-3 py-2"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-naos-text mb-2">
-              Confirm Password
-            </label>
-            <input
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              type="password"
-              required
-              className="w-full border border-naos-gray rounded px-3 py-2"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-naos-text mb-2">
+            <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-name">
               Full Name
             </label>
             <input
+              id="reg-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              className="w-full border border-naos-gray rounded px-3 py-2"
+              placeholder="e.g. Adebayo Olumide"
+              className="w-full border border-naos-gray rounded-md px-3 py-2 text-sm text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-naos-text mb-2">
-                Level
+              <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-email">
+                Email Address
               </label>
               <input
-                value={level}
-                onChange={(e) => setLevel(e.target.value)}
+                id="reg-email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                type="email"
                 required
-                type="text"
-                className="w-full border border-naos-gray rounded px-3 py-2"
+                autoComplete="email"
+                placeholder="student@unilorin.edu.ng"
+                className="w-full border border-naos-gray rounded-md px-3 py-2 text-sm text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-naos-text mb-2">
+              <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-phone">
+                Phone Number
+              </label>
+              <input
+                id="reg-phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
+                type="tel"
+                placeholder="08012345678"
+                className="w-full border border-naos-gray rounded-md px-3 py-2 text-sm text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-dept">
                 Department
               </label>
               <input
+                id="reg-dept"
                 value={dept}
                 onChange={(e) => setDept(e.target.value)}
                 required
-                className="w-full border border-naos-gray rounded px-3 py-2"
+                placeholder="e.g. Computer Science"
+                className="w-full border border-naos-gray rounded-md px-3 py-2 text-sm text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition"
               />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-level">
+                Level
+              </label>
+              <select
+                id="reg-level"
+                value={level}
+                onChange={(e) => setLevel(e.target.value)}
+                required
+                className="w-full border border-naos-gray rounded-md px-3 py-2 text-sm text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition bg-white"
+              >
+                <option value="100">100 Level</option>
+                <option value="200">200 Level</option>
+                <option value="300">300 Level</option>
+                <option value="400">400 Level</option>
+                <option value="500">500 Level</option>
+                <option value="PG">Postgraduate</option>
+              </select>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-naos-text mb-2">
-              LGA (Local Government Area)
+            <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-lga">
+              LGA (Local Government Area in Oyo State)
             </label>
             <input
+              id="reg-lga"
               value={lga}
               onChange={(e) => setLGA(e.target.value)}
               required
-              className="w-full border border-naos-gray rounded px-3 py-2"
+              placeholder="e.g. Ibadan North, Ogbomoso South, Oyo East..."
+              className="w-full border border-naos-gray rounded-md px-3 py-2 text-sm text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-naos-text mb-2">
-              Phone Number
-            </label>
-            <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-              type="tel"
-              className="w-full border border-naos-gray rounded px-3 py-2"
-            />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-password">
+                Password
+              </label>
+              <input
+                id="reg-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                type="password"
+                required
+                autoComplete="new-password"
+                placeholder="Min. 6 chars"
+                className="w-full border border-naos-gray rounded-md px-3 py-2 text-sm text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-confirm">
+                Confirm Password
+              </label>
+              <input
+                id="reg-confirm"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                type="password"
+                required
+                autoComplete="new-password"
+                placeholder="Confirm password"
+                className="w-full border border-naos-gray rounded-md px-3 py-2 text-sm text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition"
+              />
+            </div>
           </div>
 
           <button
             type="submit"
-            className="w-full bg-naos-green text-white py-2 rounded hover:bg-naos-dark transition"
+            disabled={loading}
+            className="mt-2 w-full bg-naos-green text-white font-medium py-2.5 rounded-md hover:bg-naos-dark transition duration-150 disabled:opacity-50 cursor-pointer shadow-sm"
           >
-            Register Account
+            {loading ? 'Registering...' : 'Register Account'}
           </button>
         </form>
 
-        <div className="mt-6 text-center">
-          <span className="text-sm text-naos-gray">
-            Already have an account?{" "}
-            <span
-              className="text-naos-gold font-medium underline cursor-pointer"
-            >
-              Login
-            </span>
-          </span>
+        <div className="mt-5 text-center text-sm text-naos-text">
+          <span>Already have an account? </span>
+          <button
+            type="button"
+            onClick={() => setAuthMode('login')}
+            className="text-naos-gold font-semibold hover:underline cursor-pointer ml-1"
+          >
+            Login here
+          </button>
         </div>
       </div>
+    </div>
   );
 }

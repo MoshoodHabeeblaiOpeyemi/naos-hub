@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { site } from '../data/site.js';
+import { auth } from '../firebase';
+import { signOut } from 'firebase/auth';
 
 /**
  * Sticky top navigation.
  * Mobile-first: the links collapse behind a toggle below the `md` breakpoint.
  */
-export default function Navbar({ setShowAuth }) {
+export default function Navbar({ setShowAuth, isLoggedIn, setIsLoggedIn }) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -27,6 +30,18 @@ export default function Navbar({ setShowAuth }) {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  const handleLogout = async () => {
+    if (auth) {
+      try {
+        await signOut(auth);
+      } catch (err) {
+        console.error('Sign out error:', err);
+      }
+    }
+    if (setIsLoggedIn) setIsLoggedIn(false);
+    setOpen(false);
+  };
+
   return (
     <header
       className={`sticky top-0 z-50 bg-naos-green/95 backdrop-blur transition-shadow ${
@@ -37,10 +52,10 @@ export default function Navbar({ setShowAuth }) {
         aria-label="Main navigation"
         className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6"
       >
-        <a
-          href="#"
+        <Link
+          to="/"
           className="flex items-center gap-3 rounded-sm"
-          aria-label={`${site.chapterLabel} — back to top`}
+          aria-label={`${site.chapterLabel} — home`}
         >
           <img
             src={site.logo}
@@ -57,7 +72,7 @@ export default function Navbar({ setShowAuth }) {
               {site.chapter}
             </span>
           </span>
-        </a>
+        </Link>
 
         <button
           type="button"
@@ -84,26 +99,46 @@ export default function Navbar({ setShowAuth }) {
           </svg>
         </button>
 
-        <button
-          type="button"
-          onClick={() => setShowAuth(true)}
-          className="hidden md:flex items-center gap-2 px-4 py-2 rounded-md bg-white/10 text-white font-medium text-sm hover:bg-white/20 transition-colors"
-        >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 6.253v13m0-13C10.832 8.988 9.246 9 7.5 9S4.168 8.988 3 6.253m0 0a6 6 0 0110.748 0M3 6.253v13m0-13C10.832 8.988 9.246 9 7.5 9S4.168 8.988 3 6.253m0 0a6 6 0 0110.748 0M3 6.253v13m0-13C10.832 8.988 9.246 9 7.5 9S4.168 8.988 3 6.253"
-            />
-          </svg>
-          Login / Join
-        </button>
+        <div className="hidden md:flex items-center gap-3">
+          {isLoggedIn ? (
+            <>
+              <Link
+                to="/dashboard"
+                className="px-4 py-2 rounded-md bg-white/15 text-white font-medium text-sm hover:bg-white/25 transition-colors"
+              >
+                Dashboard
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="px-3 py-2 rounded-md text-white/80 hover:text-white font-medium text-sm transition-colors cursor-pointer"
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowAuth && setShowAuth(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-md bg-white/10 text-white font-medium text-sm hover:bg-white/20 transition-colors cursor-pointer"
+            >
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 6.253v13m0-13C10.832 8.988 9.246 9 7.5 9S4.168 8.988 3 6.253m0 0a6 6 0 0110.748 0M3 6.253v13m0-13C10.832 8.988 9.246 9 7.5 9S4.168 8.988 3 6.253m0 0a6 6 0 0110.748 0M3 6.253v13m0-13C10.832 8.988 9.246 9 7.5 9S4.168 8.988 3 6.253"
+                />
+              </svg>
+              Login / Join
+            </button>
+          )}
+        </div>
 
         <ul
           id="primary-menu"
@@ -122,13 +157,36 @@ export default function Navbar({ setShowAuth }) {
               </a>
             </li>
           ))}
-          <li>
-            <button
-              onClick={() => { setOpen(false); setShowAuth(true); }}
-              className="block w-full rounded-md px-3 py-2 text-sm font-medium text-white/90 transition-colors hover:bg-white/10 hover:text-naos-gold md:hidden"
-            >
-              Login / Join
-            </button>
+          <li className="pt-2 border-t border-white/10 md:hidden">
+            {isLoggedIn ? (
+              <div className="flex flex-col gap-2">
+                <Link
+                  to="/dashboard"
+                  onClick={() => setOpen(false)}
+                  className="block rounded-md bg-white/10 px-3 py-2 text-center text-sm font-medium text-white hover:bg-white/20"
+                >
+                  Dashboard
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="block w-full rounded-md px-3 py-2 text-center text-sm font-medium text-red-300 hover:bg-white/10"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  if (setShowAuth) setShowAuth(true);
+                }}
+                className="block w-full rounded-md bg-white/10 px-3 py-2 text-center text-sm font-medium text-white hover:bg-white/20"
+              >
+                Login / Join
+              </button>
+            )}
           </li>
         </ul>
       </nav>
