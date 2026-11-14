@@ -1,22 +1,23 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { site } from '../data/site.js';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
 
 /**
  * Sticky top navigation.
- * Mobile-first: the links collapse behind a toggle below the `md` breakpoint.
+ * Switches between public state (Logo, Home, Login/Join)
+ * and authenticated state (Logo, Home, Feed, Dashboard, [Admin Panel], Logout).
  */
 export default function Navbar({ setShowAuth, isLoggedIn, setIsLoggedIn, userProfile }) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(() => (typeof window !== 'undefined' ? window.scrollY > 8 : false));
+  const location = useLocation();
 
   const role = (userProfile?.role || '').toLowerCase();
   const isAdmin = role === 'pro1' || role === 'pro2';
 
-  // Close the mobile menu whenever the viewport grows to desktop size,
-  // otherwise it stays "open" and is invisible once the links return.
+  // Close mobile menu on screen resize
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');
     const onChange = (event) => {
@@ -26,6 +27,7 @@ export default function Navbar({ setShowAuth, isLoggedIn, setIsLoggedIn, userPro
     return () => mq.removeEventListener('change', onChange);
   }, []);
 
+  // Track window scroll for shadow effect
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -44,6 +46,8 @@ export default function Navbar({ setShowAuth, isLoggedIn, setIsLoggedIn, userPro
     setOpen(false);
   };
 
+  const isCurrent = (path) => location.pathname === path;
+
   return (
     <header
       className={`sticky top-0 z-50 bg-naos-green/95 backdrop-blur transition-shadow ${
@@ -54,6 +58,7 @@ export default function Navbar({ setShowAuth, isLoggedIn, setIsLoggedIn, userPro
         aria-label="Main navigation"
         className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6"
       >
+        {/* NAOS Logo */}
         <Link
           to="/"
           className="flex items-center gap-3 rounded-sm"
@@ -76,6 +81,7 @@ export default function Navbar({ setShowAuth, isLoggedIn, setIsLoggedIn, userPro
           </span>
         </Link>
 
+        {/* Mobile Hamburger Toggle */}
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
@@ -101,27 +107,50 @@ export default function Navbar({ setShowAuth, isLoggedIn, setIsLoggedIn, userPro
           </svg>
         </button>
 
-        <div className="hidden md:flex items-center gap-3">
+        {/* Desktop Menu */}
+        <div className="hidden md:flex items-center gap-4">
+          <Link
+            to="/"
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              isCurrent('/') ? 'text-naos-gold bg-white/10' : 'text-white/90 hover:text-naos-gold hover:bg-white/10'
+            }`}
+          >
+            Home
+          </Link>
+
           {isLoggedIn ? (
             <>
+              <Link
+                to="/feed"
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  isCurrent('/feed') ? 'text-naos-gold bg-white/10' : 'text-white/90 hover:text-naos-gold hover:bg-white/10'
+                }`}
+              >
+                Feed
+              </Link>
+
+              <Link
+                to="/dashboard"
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  isCurrent('/dashboard') ? 'text-naos-gold bg-white/10' : 'text-white/90 hover:text-naos-gold hover:bg-white/10'
+                }`}
+              >
+                Dashboard
+              </Link>
+
               {isAdmin && (
                 <Link
                   to="/admin"
-                  className="px-3 py-2 rounded-md bg-naos-gold text-naos-dark font-bold text-xs hover:bg-yellow-400 transition-colors shadow-xs"
+                  className="px-3 py-1.5 rounded-md bg-naos-gold text-naos-dark font-bold text-xs hover:bg-yellow-400 transition-colors shadow-xs"
                 >
                   Admin Panel
                 </Link>
               )}
-              <Link
-                to="/dashboard"
-                className="px-4 py-2 rounded-md bg-white/15 text-white font-medium text-sm hover:bg-white/25 transition-colors"
-              >
-                Dashboard
-              </Link>
+
               <button
                 type="button"
                 onClick={handleLogout}
-                className="px-3 py-2 rounded-md text-white/80 hover:text-white font-medium text-sm transition-colors cursor-pointer"
+                className="px-3 py-1.5 rounded-md text-white/80 hover:text-red-300 font-medium text-sm transition-colors cursor-pointer"
               >
                 Logout
               </button>
@@ -130,84 +159,86 @@ export default function Navbar({ setShowAuth, isLoggedIn, setIsLoggedIn, userPro
             <button
               type="button"
               onClick={() => setShowAuth && setShowAuth(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-md bg-white/10 text-white font-medium text-sm hover:bg-white/20 transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2 rounded-md bg-naos-gold text-naos-dark font-bold text-sm hover:bg-yellow-400 transition-colors cursor-pointer shadow-xs"
             >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 6.253v13m0-13C10.832 8.988 9.246 9 7.5 9S4.168 8.988 3 6.253m0 0a6 6 0 0110.748 0M3 6.253v13m0-13C10.832 8.988 9.246 9 7.5 9S4.168 8.988 3 6.253m0 0a6 6 0 0110.748 0M3 6.253v13m0-13C10.832 8.988 9.246 9 7.5 9S4.168 8.988 3 6.253"
-                />
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
               </svg>
               Login / Join
             </button>
           )}
         </div>
 
-        <ul
+        {/* Mobile Dropdown Menu */}
+        <div
           id="primary-menu"
           className={`${
             open ? 'flex' : 'hidden'
-          } absolute inset-x-0 top-full flex-col gap-1 border-t border-white/10 bg-naos-dark px-4 py-3 md:static md:flex md:flex-row md:items-center md:gap-6 md:border-0 md:bg-transparent md:px-0 md:py-0`}
+          } absolute inset-x-0 top-full flex-col gap-2 border-t border-white/10 bg-naos-dark px-4 py-4 md:hidden shadow-xl`}
         >
-          {site.nav.map((item) => (
-            <li key={item.href}>
-              <a
-                href={item.href}
+          <Link
+            to="/"
+            onClick={() => setOpen(false)}
+            className={`block rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+              isCurrent('/') ? 'text-naos-gold bg-white/10' : 'text-white/90 hover:bg-white/10 hover:text-naos-gold'
+            }`}
+          >
+            Home
+          </Link>
+
+          {isLoggedIn ? (
+            <>
+              <Link
+                to="/feed"
                 onClick={() => setOpen(false)}
-                className="block rounded-md px-3 py-2 text-sm font-medium text-white/90 transition-colors hover:bg-white/10 hover:text-naos-gold md:px-0 md:py-1"
+                className={`block rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  isCurrent('/feed') ? 'text-naos-gold bg-white/10' : 'text-white/90 hover:bg-white/10 hover:text-naos-gold'
+                }`}
               >
-                {item.label}
-              </a>
-            </li>
-          ))}
-          <li className="pt-2 border-t border-white/10 md:hidden">
-            {isLoggedIn ? (
-              <div className="flex flex-col gap-2">
-                {isAdmin && (
-                  <Link
-                    to="/admin"
-                    onClick={() => setOpen(false)}
-                    className="block rounded-md bg-naos-gold px-3 py-2 text-center text-sm font-bold text-naos-dark hover:bg-yellow-400"
-                  >
-                    Admin Panel
-                  </Link>
-                )}
+                Feed
+              </Link>
+
+              <Link
+                to="/dashboard"
+                onClick={() => setOpen(false)}
+                className={`block rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  isCurrent('/dashboard') ? 'text-naos-gold bg-white/10' : 'text-white/90 hover:bg-white/10 hover:text-naos-gold'
+                }`}
+              >
+                Dashboard
+              </Link>
+
+              {isAdmin && (
                 <Link
-                  to="/dashboard"
+                  to="/admin"
                   onClick={() => setOpen(false)}
-                  className="block rounded-md bg-white/10 px-3 py-2 text-center text-sm font-medium text-white hover:bg-white/20"
+                  className="block rounded-md bg-naos-gold px-3 py-2 text-center text-sm font-bold text-naos-dark hover:bg-yellow-400"
                 >
-                  Dashboard
+                  Admin Panel
                 </Link>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="block w-full rounded-md px-3 py-2 text-center text-sm font-medium text-red-300 hover:bg-white/10"
-                >
-                  Logout
-                </button>
-              </div>
-            ) : (
+              )}
+
               <button
                 type="button"
-                onClick={() => {
-                  setOpen(false);
-                  if (setShowAuth) setShowAuth(true);
-                }}
-                className="block w-full rounded-md bg-white/10 px-3 py-2 text-center text-sm font-medium text-white hover:bg-white/20"
+                onClick={handleLogout}
+                className="block w-full text-left rounded-md px-3 py-2 text-sm font-medium text-red-300 hover:bg-white/10"
               >
-                Login / Join
+                Logout
               </button>
-            )}
-          </li>
-        </ul>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                if (setShowAuth) setShowAuth(true);
+              }}
+              className="mt-2 block w-full rounded-md bg-naos-gold px-4 py-2.5 text-center text-sm font-bold text-naos-dark hover:bg-yellow-400 shadow-sm"
+            >
+              Login / Join
+            </button>
+          )}
+        </div>
       </nav>
     </header>
   );

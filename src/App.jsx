@@ -4,18 +4,32 @@ import Layout from './components/Layout.jsx';
 import HomePage from './components/HomePage.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import AdminDashboard from './components/AdminDashboard.jsx';
+import Feed from './components/Feed.jsx';
 import Login from './components/Login.jsx';
 import Register from './components/Register.jsx';
 import { auth, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 
+function ProtectedFeedRoute({ isLoggedIn, userProfile, setShowAuth }) {
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setShowAuth(true);
+    }
+  }, [isLoggedIn, setShowAuth]);
+
+  if (!isLoggedIn) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <Feed userProfile={userProfile} />;
+}
+
 function AppContent() {
   const [showAuth, setShowAuth] = useState(false);
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
-  // Initialize authLoading to true only if Firebase auth exists, avoiding synchronous setState in effect
   const [authLoading, setAuthLoading] = useState(Boolean(auth));
 
   // Sync auth state & fetch user role from Firestore on login
@@ -72,6 +86,18 @@ function AppContent() {
       >
         <Routes>
           <Route path="/" element={<HomePage setShowAuth={setShowAuth} />} />
+
+          {/* Protected Community Feed Route */}
+          <Route
+            path="/feed"
+            element={
+              <ProtectedFeedRoute
+                isLoggedIn={isLoggedIn}
+                userProfile={userProfile}
+                setShowAuth={setShowAuth}
+              />
+            }
+          />
 
           {/* Member Dashboard Route */}
           <Route
