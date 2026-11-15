@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { db, auth } from '../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { usePaystack } from '../hooks/usePaystack.js';
@@ -58,10 +59,21 @@ export default function PaywallScreen({ userProfile, onVerified }) {
   const email = auth?.currentUser?.email || userProfile?.email || '';
   const uid   = auth?.currentUser?.uid;
 
+  // toast: null | { type: 'success'|'error', title: string, body: string }
+  const [toast, setToast] = useState(null);
+
+  const showToast = (type, title, body) => {
+    setToast({ type, title, body });
+    if (type === 'success') {
+      // auto-dismiss after 3 s then hand off to onVerified
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
   const handlePayNow = () => {
     const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || '';
     if (!publicKey) {
-      alert('Payment system is not configured. Please contact the admin.');
+      showToast('error', 'Configuration error', 'Payment system is not configured. Please contact the admin.');
       return;
     }
 
@@ -77,19 +89,27 @@ export default function PaywallScreen({ userProfile, onVerified }) {
         ],
       },
       onSuccess: async (transaction) => {
+        const ref = transaction?.reference || transaction?.trxref || '';
         try {
-          if (!db || !uid) return;
+          if (!db || !uid) throw new Error('Firestore not available');
           const passId = `NAOS-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
           await updateDoc(doc(db, 'users', uid), {
             isVerified:       true,
             passId,
-            paymentReference: transaction?.reference || transaction?.trxref || '',
+            paymentReference: ref,
             verifiedAt:       new Date().toISOString(),
           });
-          if (onVerified) onVerified({ isVerified: true, passId });
+          showToast('success', 'Payment successful!', 'Your membership is now active. Redirecting to your dashboard…');
+          setTimeout(() => {
+            if (onVerified) onVerified({ isVerified: true, passId });
+          }, 2000);
         } catch (err) {
-          console.error('[Paywall] Failed to update verification status:', err);
-          alert('Payment received but we could not update your record. Please contact support with your payment reference.');
+          console.error('[Paywall] Firestore update failed:', err);
+          showToast(
+            'error',
+            'Payment received — record update failed',
+            `Your payment was successful (ref: ${ref || 'N/A'}), but we could not update your record automatically. Please send your payment reference to the PRO.`
+          );
         }
       },
       onCancel: () => {
@@ -154,6 +174,49 @@ export default function PaywallScreen({ userProfile, onVerified }) {
             Secured by Paystack · One-time payment · No recurring charges
           </p>
         </div>
+
+        {/* ── Toast notification ── */}
+        {toast && (
+          <div
+            className={`mt-6 rounded-xl border p-4 flex items-start gap-3 ${
+              toast.type === 'success'
+                ? 'bg-emerald-900/60 border-emerald-500/40 text-emerald-200'
+                : 'bg-red-900/60 border-red-500/40 text-red-200'
+            }`}
+            role="alert"
+          >
+            {/* Icon */}
+            <span className="shrink-0 mt-0.5">
+              {toast.type === 'success' ? (
+                <svg className="h-5 w-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="h-5 w-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+              )}
+            </span>
+            {/* Message */}
+            <div className="min-w-0">
+              <p className="text-sm font-bold">{toast.title}</p>
+              <p className="text-xs mt-0.5 leading-relaxed opacity-90">{toast.body}</p>
+            </div>
+            {/* Dismiss (error only — success auto-dismisses) */}
+            {toast.type === 'error' && (
+              <button
+                type="button"
+                onClick={() => setToast(null)}
+                className="shrink-0 ml-auto text-red-300 hover:text-white transition cursor-pointer"
+                aria-label="Dismiss"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
 
       </div>
     </section>
