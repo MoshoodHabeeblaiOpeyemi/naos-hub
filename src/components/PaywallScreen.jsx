@@ -1,6 +1,6 @@
-import { usePaystackPayment } from 'react-paystack';
 import { db, auth } from '../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
+import { usePaystack } from '../hooks/usePaystack.js';
 
 const AMOUNT_KOBO = 100000; // ₦1,000
 
@@ -46,51 +46,46 @@ const BENEFITS = [
 /**
  * PaywallScreen
  * Shown when a logged-in user has isVerified !== true.
- * Handles Paystack payment and writes isVerified + passId to Firestore on success.
+ * Uses the native Paystack inline script (no npm package) so it works with
+ * any React version.
  *
  * Props:
- *   userProfile   — Firestore user document data
- *   onVerified    — callback fired after successful payment + Firestore write
+ *   userProfile — Firestore user document data
+ *   onVerified  — callback fired with { isVerified, passId } after payment
  */
 export default function PaywallScreen({ userProfile, onVerified }) {
+  const pay   = usePaystack();
   const email = auth?.currentUser?.email || userProfile?.email || '';
   const uid   = auth?.currentUser?.uid;
 
-  const config = {
-    reference: `naos_${uid}_${Date.now()}`,
-    email,
-    amount: AMOUNT_KOBO,
-    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || '',
-    metadata: {
-      custom_fields: [
-        { display_name: 'Name',   variable_name: 'name',   value: userProfile?.name  || '' },
-        { display_name: 'Matric', variable_name: 'matric', value: userProfile?.matric || '' },
-      ],
-    },
-  };
-
-  const initializePayment = usePaystackPayment(config);
-
   const handlePayNow = () => {
-    if (!config.publicKey) {
+    const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || '';
+    if (!publicKey) {
       alert('Payment system is not configured. Please contact the admin.');
       return;
     }
 
-    initializePayment({
-      onSuccess: async (reference) => {
+    pay({
+      key:    publicKey,
+      email,
+      amount: AMOUNT_KOBO,
+      ref:    `naos_${uid}_${Date.now()}`,
+      metadata: {
+        custom_fields: [
+          { display_name: 'Name',   variable_name: 'name',   value: userProfile?.name   || '' },
+          { display_name: 'Matric', variable_name: 'matric', value: userProfile?.matric || '' },
+        ],
+      },
+      onSuccess: async (response) => {
         try {
           if (!db || !uid) return;
-
           const passId = `NAOS-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-
           await updateDoc(doc(db, 'users', uid), {
-            isVerified: true,
+            isVerified:       true,
             passId,
-            paymentReference: reference?.reference || reference?.trxref || '',
-            verifiedAt: new Date().toISOString(),
+            paymentReference: response?.reference || response?.trxref || '',
+            verifiedAt:       new Date().toISOString(),
           });
-
           if (onVerified) onVerified({ isVerified: true, passId });
         } catch (err) {
           console.error('[Paywall] Failed to update verification status:', err);
@@ -98,7 +93,7 @@ export default function PaywallScreen({ userProfile, onVerified }) {
         }
       },
       onClose: () => {
-        // User closed the popup without paying — do nothing
+        // User dismissed the popup — do nothing
       },
     });
   };
