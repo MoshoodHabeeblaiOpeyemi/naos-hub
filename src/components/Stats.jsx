@@ -1,11 +1,42 @@
-import { stats } from '../data/site.js';
+import { useEffect, useState } from 'react';
+import { db } from '../firebase';
+import { collection, getCountFromServer, query, where } from 'firebase/firestore';
+import { stats as staticStats } from '../data/site.js';
 
-/** Compact credibility strip directly under the hero. */
+/**
+ * Stats strip.
+ * The first stat (Enrolled Members) is fetched live from Firestore by counting
+ * users where isVerified == true. The remaining two stats stay static from
+ * site.js. Falls back to '—' gracefully if Firestore is unavailable.
+ */
 export default function Stats() {
+  const [verifiedCount, setVerifiedCount] = useState(null);
+
+  useEffect(() => {
+    if (!db) return;
+    (async () => {
+      try {
+        const snap = await getCountFromServer(
+          query(collection(db, 'users'), where('isVerified', '==', true))
+        );
+        setVerifiedCount(snap.data().count);
+      } catch (err) {
+        console.warn('[Stats] Could not fetch member count:', err.message);
+      }
+    })();
+  }, []);
+
+  // Replace the first stat's value with the live count; leave others untouched
+  const displayStats = staticStats.map((s, i) =>
+    i === 0
+      ? { ...s, value: verifiedCount !== null ? String(verifiedCount) : '—', note: 'Verified members' }
+      : s
+  );
+
   return (
     <section aria-label="Association at a glance" className="bg-naos-white">
       <dl className="mx-auto grid max-w-6xl gap-6 px-4 py-12 sm:grid-cols-3 sm:px-6">
-        {stats.map((stat) => (
+        {displayStats.map((stat) => (
           <div
             key={stat.label}
             className="rounded-lg border border-naos-green/10 bg-naos-gray/60 p-6 text-center"

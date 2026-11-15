@@ -23,7 +23,7 @@ export const site = {
   university: 'University of Ilorin',
 
   /** Taken verbatim from the official NAOS crest. Pending Exec confirmation. */
-  motto: 'AJISE BI OYO LAARI',
+  motto: 'Ajise bi Oyo Laari',
   slogan: 'OYO KII SE BI BABA ENIKOOKAN',
 
   /**
