@@ -1,14 +1,45 @@
+import { useEffect, useState } from 'react';
+import { db } from '../firebase';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import SectionHeading from './SectionHeading.jsx';
-import {
-  getPublicEvents,
-  formatEventDate,
-  formatEventTime,
-  eventKindLabels,
-} from '../data/events.js';
+import { formatEventDate, formatEventTime, eventKindLabels } from '../data/events.js';
 
-/** Events list. Falls back to recent past events when none are upcoming. */
+/**
+ * Upcoming Events section.
+ * Fetches events in real-time from the Firestore `events` collection,
+ * ordered by date ascending. Falls back gracefully when Firestore is
+ * unavailable or the collection is empty.
+ */
 export default function Events() {
-  const list = getPublicEvents();
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!db) {
+      setLoading(false);
+      return;
+    }
+
+    const q = query(collection(db, 'events'), orderBy('date', 'asc'));
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        setEvents(
+          snapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+          }))
+        );
+        setLoading(false);
+      },
+      (err) => {
+        console.warn('[Events] Firestore error:', err.message);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
 
   return (
     <section
@@ -23,15 +54,19 @@ export default function Events() {
           lede="Dates and venues are confirmed by the organising director."
         />
 
-        {list.length === 0 ? (
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-naos-green border-t-transparent" />
+          </div>
+        ) : events.length === 0 ? (
           <p className="rounded-lg bg-naos-white p-8 text-center text-naos-text/70">
-            No events scheduled yet. Check back soon or follow our WhatsApp for
-            updates.
+            No events scheduled yet. Check back soon or follow our WhatsApp for updates.
           </p>
         ) : (
           <ul className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {list.map((event) => {
+            {events.map((event) => {
               const time = formatEventTime(event.time);
+              const kindLabel = eventKindLabels[event.kind] ?? event.kind ?? 'General';
 
               return (
                 <li
@@ -52,14 +87,14 @@ export default function Events() {
                       className="flex h-40 w-full items-center justify-center bg-naos-green"
                     >
                       <span className="text-3xl font-bold tracking-[0.2em] text-naos-gold">
-                        {eventKindLabels[event.kind]}
+                        {kindLabel}
                       </span>
                     </div>
                   )}
 
                   <div className="flex flex-1 flex-col p-6">
                     <span className="inline-flex w-fit rounded-full bg-naos-green/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-naos-green">
-                      {eventKindLabels[event.kind]}
+                      {kindLabel}
                     </span>
 
                     <h3 className="mt-3 text-lg font-bold text-naos-green">
@@ -68,22 +103,18 @@ export default function Events() {
 
                     <dl className="mt-4 space-y-2 text-sm text-naos-text/80">
                       <div className="flex gap-2">
-                        <dt className="sr-only-focusable">Date</dt>
+                        <dt className="sr-only">Date</dt>
                         <dd className="flex items-start gap-2">
-                          <span aria-hidden="true" className="text-naos-gold">
-                            ◆
-                          </span>
+                          <span aria-hidden="true" className="text-naos-gold">◆</span>
                           <span>{formatEventDate(event.date)}</span>
                         </dd>
                       </div>
 
                       {time && (
                         <div className="flex gap-2">
-                          <dt className="sr-only-focusable">Time</dt>
+                          <dt className="sr-only">Time</dt>
                           <dd className="flex items-start gap-2">
-                            <span aria-hidden="true" className="text-naos-gold">
-                              ◆
-                            </span>
+                            <span aria-hidden="true" className="text-naos-gold">◆</span>
                             <span>{time}</span>
                           </dd>
                         </div>
@@ -91,11 +122,9 @@ export default function Events() {
 
                       {event.location && (
                         <div className="flex gap-2">
-                          <dt className="sr-only-focusable">Venue</dt>
+                          <dt className="sr-only">Venue</dt>
                           <dd className="flex items-start gap-2">
-                            <span aria-hidden="true" className="text-naos-gold">
-                              ◆
-                            </span>
+                            <span aria-hidden="true" className="text-naos-gold">◆</span>
                             <span>{event.location}</span>
                           </dd>
                         </div>

@@ -85,7 +85,7 @@ function AppContent() {
         userProfile={userProfile}
       >
         <Routes>
-          <Route path="/" element={<HomePage setShowAuth={setShowAuth} />} />
+          <Route path="/" element={<HomePage setShowAuth={setShowAuth} isLoggedIn={isLoggedIn} />} />
 
           {/* Protected Community Feed Route */}
           <Route

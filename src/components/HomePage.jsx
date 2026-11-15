@@ -6,10 +6,10 @@ import Events from './Events.jsx';
 import Constitution from './Constitution.jsx';
 import Contact from './Contact.jsx';
 
-export default function HomePage({ setShowAuth }) {
+export default function HomePage({ setShowAuth, isLoggedIn }) {
   return (
     <>
-      <Hero setShowAuth={setShowAuth} />
+      <Hero setShowAuth={setShowAuth} isLoggedIn={isLoggedIn} />
       <Stats />
       <About />
       <Executives />
