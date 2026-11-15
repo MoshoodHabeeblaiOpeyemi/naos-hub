@@ -7,22 +7,47 @@ import AdminDashboard from './components/AdminDashboard.jsx';
 import Feed from './components/Feed.jsx';
 import Login from './components/Login.jsx';
 import Register from './components/Register.jsx';
+import PaywallScreen from './components/PaywallScreen.jsx';
 import { auth, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 
-function ProtectedFeedRoute({ isLoggedIn, userProfile, setShowAuth }) {
-  useEffect(() => {
-    if (!isLoggedIn) {
-      setShowAuth(true);
-    }
-  }, [isLoggedIn, setShowAuth]);
-
+/**
+ * Wraps any route that requires both login AND verification.
+ * - Not logged in  → redirect to home (and open auth modal)
+ * - Logged in but unverified → show PaywallScreen inside the Layout
+ * - Logged in and verified → render children
+ */
+function VerifiedRoute({ isLoggedIn, userProfile, setUserProfile, setShowAuth, children }) {
+  // Not authenticated at all
   if (!isLoggedIn) {
+    if (setShowAuth) setShowAuth(true);
     return <Navigate to="/" replace />;
   }
 
-  return <Feed userProfile={userProfile} />;
+  // Auth loading — userProfile not fetched yet (null means still loading when isLoggedIn is true)
+  // We distinguish null (loading) from explicit profile with isVerified set.
+  // If we don't have a profile yet, render nothing while App loads it.
+  if (userProfile === null) {
+    return (
+      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-naos-green border-t-transparent" />
+      </div>
+    );
+  }
+
+  // Logged in but not yet verified → paywall
+  if (!userProfile.isVerified) {
+    return (
+      <PaywallScreen
+        userProfile={userProfile}
+        onVerified={(updates) => setUserProfile((prev) => ({ ...prev, ...updates }))}
+      />
+    );
+  }
+
+  // Verified — render the requested page
+  return children;
 }
 
 function AppContent() {
@@ -32,7 +57,7 @@ function AppContent() {
   const [userProfile, setUserProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(Boolean(auth));
 
-  // Sync auth state & fetch user role from Firestore on login
+  // Sync Firebase Auth state and load Firestore profile
   useEffect(() => {
     if (!auth) return;
 
@@ -41,15 +66,11 @@ function AppContent() {
         setIsLoggedIn(true);
         if (db) {
           try {
-            const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
-            if (userSnap.exists()) {
-              setUserProfile(userSnap.data());
-            } else {
-              setUserProfile(null);
-            }
+            const snap = await getDoc(doc(db, 'users', currentUser.uid));
+            setUserProfile(snap.exists() ? snap.data() : {});
           } catch (err) {
-            console.error('Failed to load user role from Firestore:', err);
-            setUserProfile(null);
+            console.error('Failed to load user profile:', err);
+            setUserProfile({});
           }
         }
       } else {
@@ -62,7 +83,7 @@ function AppContent() {
     return () => unsubscribe();
   }, []);
 
-  const role = (userProfile?.role || 'member').toLowerCase();
+  const role    = (userProfile?.role || 'member').toLowerCase();
   const isAdmin = role === 'pro1' || role === 'pro2';
 
   if (authLoading) {
@@ -85,36 +106,47 @@ function AppContent() {
         userProfile={userProfile}
       >
         <Routes>
-          <Route path="/" element={<HomePage setShowAuth={setShowAuth} isLoggedIn={isLoggedIn} />} />
+          {/* ── Public ── */}
+          <Route
+            path="/"
+            element={<HomePage setShowAuth={setShowAuth} isLoggedIn={isLoggedIn} />}
+          />
 
-          {/* Protected Community Feed Route */}
+          {/* ── Community Feed (login + verified) ── */}
           <Route
             path="/feed"
             element={
-              <ProtectedFeedRoute
+              <VerifiedRoute
                 isLoggedIn={isLoggedIn}
                 userProfile={userProfile}
+                setUserProfile={setUserProfile}
                 setShowAuth={setShowAuth}
-              />
+              >
+                <Feed userProfile={userProfile} />
+              </VerifiedRoute>
             }
           />
 
-          {/* Member Dashboard Route */}
+          {/* ── Member Dashboard (login + verified) ── */}
           <Route
             path="/dashboard"
             element={
-              isLoggedIn ? (
+              <VerifiedRoute
+                isLoggedIn={isLoggedIn}
+                userProfile={userProfile}
+                setUserProfile={setUserProfile}
+                setShowAuth={setShowAuth}
+              >
                 <Dashboard
                   setIsLoggedIn={setIsLoggedIn}
                   userProfile={userProfile}
+                  setUserProfile={setUserProfile}
                 />
-              ) : (
-                <Navigate to="/" replace />
-              )
+              </VerifiedRoute>
             }
           />
 
-          {/* Protected Admin Route (pro1 and pro2 only) */}
+          {/* ── Admin (login + verified + PRO role) ── */}
           <Route
             path="/admin"
             element={
@@ -128,12 +160,12 @@ function AppContent() {
             }
           />
 
-          {/* Fallback */}
+          {/* ── Fallback ── */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
 
-      {/* Auth Modal Overlay */}
+      {/* Auth Modal Overlay — only shown when not logged in */}
       {!isLoggedIn && showAuth && (
         authMode === 'login' ? (
           <Login
@@ -146,6 +178,7 @@ function AppContent() {
             setShowAuth={setShowAuth}
             setIsLoggedIn={setIsLoggedIn}
             setAuthMode={setAuthMode}
+            setUserProfile={setUserProfile}
           />
         )
       )}

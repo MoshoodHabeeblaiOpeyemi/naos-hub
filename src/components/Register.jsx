@@ -8,7 +8,7 @@ import { calculateAcademicLevel } from '../utils/academicLevel';
 const VALID_LGAS = ['Oyo East', 'Oyo West', 'Afijio', 'Atiba'];
 const ENTRY_YEARS = [2020, 2021, 2022, 2023, 2024, 2025, 2026];
 
-export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode }) {
+export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode, setUserProfile }) {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -84,12 +84,29 @@ export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode }) {
         phone: phone.trim(),
         email: email.trim(),
         role: 'member',
+        isVerified: false,
         createdAt: new Date().toISOString(),
       });
 
       setMessage('Account created successfully!');
       setIsLoggedIn(true);
+      if (setUserProfile) {
+        setUserProfile({
+          name: name.trim(),
+          matric: matric.trim().toUpperCase(),
+          dept: dept.trim(),
+          entryYear: Number(entryYear),
+          courseDuration: Number(courseDuration),
+          level: calculatedLevel,
+          lga: lga.trim(),
+          phone: phone.trim(),
+          email: email.trim(),
+          role: 'member',
+          isVerified: false,
+        });
+      }
       setShowAuth(false);
+      // VerifiedRoute will catch unverified users and show PaywallScreen
       navigate('/dashboard');
     } catch (err) {
       console.error('Registration error:', err);
