@@ -1,92 +1,87 @@
 import { useEffect, useRef, useState } from 'react';
 
-const SCRIPT_URL = 'https://js.paystack.co/v1/inline.js';
-const SCRIPT_ID  = 'paystack-inline-script';
-
 /**
  * usePaystack
- * Dynamically loads the Paystack inline script once and returns a stable
- * `pay` function that opens the payment popup.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Dynamically loads the Paystack Inline JS V2 script once and returns a
+ * stable `pay` function that opens the checkout popup.
+ *
+ * V2 API (from https://paystack.com/docs/developer-tools/inlinejs/):
+ *   const popup = new PaystackPop();          // CDN class name is PaystackPop
+ *   popup.newTransaction({ key, email, amount, reference,
+ *                          onSuccess, onCancel, onError });
  *
  * Usage:
  *   const pay = usePaystack();
- *   pay({
- *     key, email, amount, ref, metadata,
- *     onSuccess: (response) => { ... },
- *     onClose:   ()         => { ... },
- *   });
+ *   pay({ key, email, amount, reference, metadata, onSuccess, onCancel });
  */
+
+const SCRIPT_SRC = 'https://js.paystack.co/v2/inline.js';
+const SCRIPT_ID  = 'paystack-inline-v2';
+
 export function usePaystack() {
-  const [scriptReady, setScriptReady] = useState(
-    // If the script was already injected by a previous render, mark it ready now
+  const [ready, setReady] = useState(
     () => typeof window !== 'undefined' && !!document.getElementById(SCRIPT_ID)
   );
-
-  // Keep a queue of pending calls made before the script loaded
-  const pendingCall = useRef(null);
+  const queued = useRef(null); // stores a pay() call made before the script loaded
 
   useEffect(() => {
-    // Already loaded — nothing to do
+    // Already injected (e.g. hot-reload) — nothing to do
     if (document.getElementById(SCRIPT_ID)) {
-      setScriptReady(true);
+      setReady(true);
       return;
     }
 
-    const script = document.createElement('script');
-    script.id  = SCRIPT_ID;
-    script.src = SCRIPT_URL;
-    script.async = true;
-
-    script.onload = () => {
-      setScriptReady(true);
-      // Flush any call that was queued before the script finished
-      if (pendingCall.current) {
-        pendingCall.current();
-        pendingCall.current = null;
+    const script    = document.createElement('script');
+    script.id       = SCRIPT_ID;
+    script.src      = SCRIPT_SRC;
+    script.async    = true;
+    script.onload   = () => {
+      setReady(true);
+      if (queued.current) {
+        queued.current();
+        queued.current = null;
       }
     };
-
-    script.onerror = () => {
-      console.error('[usePaystack] Failed to load Paystack script.');
-    };
-
+    script.onerror  = () => console.error('[usePaystack] Failed to load Paystack V2 script.');
     document.body.appendChild(script);
   }, []);
 
   /**
    * @param {{
-   *   key: string,
-   *   email: string,
-   *   amount: number,
-   *   ref: string,
-   *   metadata?: object,
-   *   onSuccess: (response: object) => void,
-   *   onClose: () => void,
+   *   key:        string,
+   *   email:      string,
+   *   amount:     number,   // kobo
+   *   reference:  string,
+   *   metadata?:  object,
+   *   onSuccess:  (transaction: object) => void,
+   *   onCancel?:  () => void,
+   *   onError?:   (error: object) => void,
    * }} config
    */
   const pay = (config) => {
     const launch = () => {
       if (typeof window.PaystackPop === 'undefined') {
-        console.error('[usePaystack] PaystackPop is not available.');
+        console.error('[usePaystack] PaystackPop is not defined — script may not have loaded.');
         return;
       }
-      const handler = window.PaystackPop.setup({
+      const popup = new window.PaystackPop();
+      popup.newTransaction({
         key:       config.key,
         email:     config.email,
         amount:    config.amount,
-        ref:       config.ref,
+        reference: config.reference,
         metadata:  config.metadata || {},
-        callback:  config.onSuccess,
-        onClose:   config.onClose,
+        onSuccess: config.onSuccess,
+        onCancel:  config.onCancel  || (() => {}),
+        onError:   config.onError   || ((err) => console.error('[Paystack] Error:', err.message)),
       });
-      handler.openIframe();
     };
 
-    if (scriptReady) {
+    if (ready) {
       launch();
     } else {
-      // Script still loading — queue the call
-      pendingCall.current = launch;
+      queued.current = launch; // flush on script onload
     }
   };
 

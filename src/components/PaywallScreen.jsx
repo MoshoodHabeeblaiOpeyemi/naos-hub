@@ -66,24 +66,24 @@ export default function PaywallScreen({ userProfile, onVerified }) {
     }
 
     pay({
-      key:    publicKey,
+      key:       publicKey,
       email,
-      amount: AMOUNT_KOBO,
-      ref:    `naos_${uid}_${Date.now()}`,
+      amount:    AMOUNT_KOBO,
+      reference: `naos_${uid}_${Date.now()}`,
       metadata: {
         custom_fields: [
           { display_name: 'Name',   variable_name: 'name',   value: userProfile?.name   || '' },
           { display_name: 'Matric', variable_name: 'matric', value: userProfile?.matric || '' },
         ],
       },
-      onSuccess: async (response) => {
+      onSuccess: async (transaction) => {
         try {
           if (!db || !uid) return;
           const passId = `NAOS-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
           await updateDoc(doc(db, 'users', uid), {
             isVerified:       true,
             passId,
-            paymentReference: response?.reference || response?.trxref || '',
+            paymentReference: transaction?.reference || transaction?.trxref || '',
             verifiedAt:       new Date().toISOString(),
           });
           if (onVerified) onVerified({ isVerified: true, passId });
@@ -92,7 +92,7 @@ export default function PaywallScreen({ userProfile, onVerified }) {
           alert('Payment received but we could not update your record. Please contact support with your payment reference.');
         }
       },
-      onClose: () => {
+      onCancel: () => {
         // User dismissed the popup — do nothing
       },
     });
