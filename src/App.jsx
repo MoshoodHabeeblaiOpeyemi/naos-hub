@@ -9,6 +9,8 @@ import PastExecutives from './components/PastExecutives.jsx';
 import Login from './components/Login.jsx';
 import Register from './components/Register.jsx';
 import PaywallScreen from './components/PaywallScreen.jsx';
+import RulesPage from './components/RulesPage.jsx';
+import Gallery from './components/Gallery.jsx';
 import { auth, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -74,8 +76,8 @@ function AppContent() {
   }, []);
 
   const role    = (userProfile?.role || 'member').toLowerCase();
-  // Only pro1, pro2, and president have admin access — no gen_sec
-  const isAdmin = role === 'pro1' || role === 'pro2' || role === 'president';
+  // Only pro1 and pro2 have admin access
+  const isAdmin = role === 'pro1' || role === 'pro2';
 
   if (authLoading) {
     return (
@@ -130,6 +132,28 @@ function AppContent() {
               <VerifiedRoute isLoggedIn={isLoggedIn} userProfile={userProfile}
                 setUserProfile={setUserProfile} setShowAuth={setShowAuth}>
                 <PastExecutives />
+              </VerifiedRoute>
+            }
+          />
+
+{/* ── Gallery (login + verified, PROs can upload) ── */}
+          <Route
+            path="/gallery"
+            element={
+              <VerifiedRoute isLoggedIn={isLoggedIn} userProfile={userProfile}
+                setUserProfile={setUserProfile} setShowAuth={setShowAuth}>
+                <Gallery />
+              </VerifiedRoute>
+            }
+          />
+
+{/* ── Rules (login + verified) ── */}
+          <Route
+            path="/rules"
+            element={
+              <VerifiedRoute isLoggedIn={isLoggedIn} userProfile={userProfile}
+                setUserProfile={setUserProfile} setShowAuth={setShowAuth}>
+                <RulesPage />
               </VerifiedRoute>
             }
           />

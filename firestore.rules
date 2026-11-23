@@ -1,130 +1,486 @@
 rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {userId} (Firebase Auth UID)
+// Fields:
+//   - name: string (required, 1-100 chars) - Full name
+//   - username: string (required, 3-20 chars, lowercase alnum/underscore, immutable once set)
+//   - role: string (in ['member', 'president', 'pro1', 'pro2', 'vp', 'gen_sec', 'fin_sec', 'treasurer', 'welfare', 'social_sec'])
+//           Only admins ('president', 'pro1', 'pro2') can assign executive roles. Standard users cannot escalate roles.
+//   - isVerified: bool (required/optional) - Dues payment verification status
+//   - passId: string (optional, max 50 chars) - Generated NAOS ID pass
+//   - matric: string (optional, max 50 chars) - Student matriculation number
+//   - dept: string (optional, max 100 chars) - Academic department
+//   - entryYear: number (optional) - Admission year
+//   - courseDuration: number (optional) - Program duration in years
+//   - level: string (optional, max 20 chars) - Academic level (e.g. '100L')
+//   - lga: string (optional, max 50 chars) - Local Government Area
+//   - phone: string (optional, max 30 chars) - Phone contact
+//   - email: string (optional, max 100 chars) - Email address
+//   - paymentReference: string (optional, max 100 chars) - Paystack transaction reference
+//   - paidAt: string (optional, max 50 chars) - ISO timestamp of payment
+//   - createdAt: string (optional, max 50 chars, immutable) - Account creation timestamp
+//   - fcmTokens: list (optional, max 50 items) - Push notification FCM registration tokens
+//   - notificationsEnabled: bool (optional) - Push notification toggle
+//   - lastTokenUpdate: string (optional, max 50 chars) - Timestamp of token update
+//
+// Collection: posts
+// Document ID: {postId} (auto-generated)
+// Fields:
+//   - title: string (optional, max 150 chars) - Post headline
+//   - body: string (required, 1-500 chars) - Post body content
+//   - imageUrl: string or null (optional, max 1000 chars) - Attached image URL
+//   - authorUid: string (required, max 128 chars, immutable) - Auth UID of post creator
+//   - authorName: string (optional, max 100 chars) - Cached author display name
+//   - authorUsername: string (optional, max 50 chars) - Cached author @username
+//   - authorRole: string (optional, max 50 chars) - Author executive/member role
+//   - authorEmail: string or null (optional, max 100 chars) - Cached email
+//   - likes: list (optional, max 10000 items) - Array of UIDs who liked the post
+//   - taggedUserIds: list (optional, max 100 items) - Array of tagged member UIDs
+//   - createdAt: string (optional, max 50 chars, immutable) - Post creation ISO timestamp
+//
+match /posts {
+  // Delete: post author or admin (pro1, pro2, president) can delete their own posts
+  allow delete: if isAuthenticated() &&
+    (request.auth.uid == resource.data.authorUid ||
+      resource.data.authorRole === 'pro1' ||
+      resource.data.authorRole === 'pro2' ||
+      resource.data.authorRole === 'president');
+}
+
+// Subcollection: posts/{postId}/comments
+// Document ID: {commentId} (auto-generated)
+// Fields:
+//   - text: string (required, 1-500 chars) - Comment message
+//   - authorUid: string (required, max 128 chars, immutable) - Auth UID of commenter
+//   - authorName: string (optional, max 100 chars) - Display name
+//   - authorUsername: string (optional, max 50 chars) - Commenter @username
+//   - authorRole: string (optional, max 50 chars) - Commenter role
+//   - taggedUserIds: list (optional, max 50 items) - Tagged member UIDs
+//   - createdAt: string (optional, max 50 chars, immutable) - Comment creation ISO timestamp
+//
+// Collection: notifications
+// Document ID: {notificationId} (auto-generated)
+// Fields:
+//   - recipientUid: string (required, max 128 chars) - Member receiving the notification
+//   - senderUid: string (required, max 128 chars) - Member triggering the notification
+//   - type: string (required, 'tag' | 'like' | 'comment') - Type of notification
+//   - message: string (required, 1-500 chars) - Notification display text
+//   - read: bool (required) - Read status (only recipient can update)
+//   - senderName: string (optional, max 100 chars)
+//   - senderUsername: string (optional, max 50 chars)
+//   - postId: string or null (optional, max 128 chars)
+//   - postTitle: string (optional, max 200 chars)
+//   - createdAt: string (optional, max 50 chars)
+//
+// Collection: events
+// Document ID: {eventId} (auto-generated)
+// Fields:
+//   - title: string (required, 1-200 chars)
+//   - date: string (required, 1-50 chars)
+//   - time: string or null (optional, max 50 chars)
+//   - location: string or null (optional, max 200 chars)
+//   - description: string or null (optional, max 1000 chars)
+//   - kind: string (optional, max 50 chars)
+//   - createdAt: string (optional, max 50 chars)
+//   - createdBy: string or null (optional, max 128 chars)
+//
+// Collection: executives
+// Document ID: {execId} (auto-generated)
+// Fields:
+//   - name: string (required, 1-100 chars)
+//   - position: string (required, 1-100 chars)
+//   - level: string or null (optional, max 50 chars)
+//   - dept: string or null (optional, max 100 chars)
+//   - photo: string or null (optional, max 1000 chars)
+//   - order: number (optional) - Display sort order
+//   - createdAt: string (optional, max 50 chars)
+//   - updatedAt: string (optional, max 50 chars)
+//
+// Collection: past_executives
+// Document ID: {execId} (auto-generated)
+// Fields:
+//   - Same schema as executives plus archivedAt (optional, max 50 chars)
+//
+// Collection: settings
+// Document ID: 'contact'
+// Fields:
+//   - proChatNumber: string (optional, max 30 chars)
+//   - proChatDisplay: string (optional, max 50 chars)
+//   - whatsappChannel: string (optional, max 200 chars)
+//   - email: string or null (optional, max 100 chars)
+//   - socials: list of maps (optional, max 20 items)
+//   - updatedAt: string (optional, max 50 chars)
+// ===============================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    function getUserData(uid) {
-      return get(/databases/$(database)/documents/users/$(uid)).data;
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
     }
 
+    function userDocExists() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Admin access: ONLY 'president', 'pro1', and 'pro2'.
+    // Note: General Secretary ('gen_sec') is strictly NOT an admin.
     function isAdmin() {
       return isAuthenticated() &&
-        getUserData(request.auth.uid).role in ['president', 'pro1', 'pro2'];
+        userDocExists() &&
+        ('role' in getUserData()) &&
+        getUserData().role in ['president', 'pro1', 'pro2'];
     }
 
+    // Verified member access: isVerified == true or isAdmin()
     function isVerified() {
       return isAuthenticated() &&
-        (getUserData(request.auth.uid).get('isVerified', false) == true || isAdmin());
+        userDocExists() &&
+        (
+          (('isVerified' in getUserData()) && getUserData().isVerified == true) ||
+          isAdmin()
+        );
     }
 
-    // ── Users Collection ───────────────────────────────────────────
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isValidOptionalString(mapData, field, minLen, maxLen) {
+      return !(field in mapData) || mapData[field] == null ||
+        (mapData[field] is string && mapData[field].size() >= minLen && mapData[field].size() <= maxLen);
+    }
+
+    function isValidList(listVal, maxSize) {
+      return listVal is list && listVal.size() <= maxSize;
+    }
+
+    // ===============================================================
+    // Domain Validators (Applied on Create and Update)
+    // ===============================================================
+
+    function isValidUser(data) {
+      return (
+        ('name' in data && isValidString(data.name, 1, 100)) &&
+        ('username' in data && data.username is string && data.username.matches('^[a-z0-9_]{3,20}$')) &&
+        (!('role' in data) || (data.role is string && data.role in [
+          'member', 'president', 'pro1', 'pro2', 'vp', 'gen_sec', 'fin_sec', 'treasurer', 'welfare', 'social_sec'
+        ])) &&
+        (!('isVerified' in data) || (data.isVerified is bool)) &&
+        isValidOptionalString(data, 'passId', 0, 50) &&
+        isValidOptionalString(data, 'matric', 0, 50) &&
+        isValidOptionalString(data, 'dept', 0, 100) &&
+        isValidOptionalString(data, 'level', 0, 20) &&
+        isValidOptionalString(data, 'lga', 0, 50) &&
+        isValidOptionalString(data, 'phone', 0, 30) &&
+        isValidOptionalString(data, 'email', 0, 100) &&
+        isValidOptionalString(data, 'paymentReference', 0, 100) &&
+        isValidOptionalString(data, 'paidAt', 0, 50) &&
+        isValidOptionalString(data, 'createdAt', 0, 50) &&
+        isValidOptionalString(data, 'lastTokenUpdate', 0, 50) &&
+        (!('entryYear' in data) || (data.entryYear is number)) &&
+        (!('courseDuration' in data) || (data.courseDuration is number)) &&
+        (!('notificationsEnabled' in data) || (data.notificationsEnabled is bool)) &&
+        (!('fcmTokens' in data) || isValidList(data.fcmTokens, 50))
+      );
+    }
+
+    function isValidPost(data) {
+      return (
+        ('body' in data && isValidString(data.body, 1, 500)) &&
+        ('authorUid' in data && isValidString(data.authorUid, 1, 128)) &&
+        isValidOptionalString(data, 'title', 0, 150) &&
+        isValidOptionalString(data, 'imageUrl', 0, 1000) &&
+        isValidOptionalString(data, 'authorName', 0, 100) &&
+        isValidOptionalString(data, 'authorUsername', 0, 50) &&
+        isValidOptionalString(data, 'authorEmail', 0, 100) &&
+        isValidOptionalString(data, 'authorRole', 0, 50) &&
+        isValidOptionalString(data, 'createdAt', 0, 50) &&
+        (!('likes' in data) || isValidList(data.likes, 10000)) &&
+        (!('taggedUserIds' in data) || isValidList(data.taggedUserIds, 100))
+      );
+    }
+
+    function isValidComment(data) {
+      return (
+        ('text' in data && isValidString(data.text, 1, 500)) &&
+        ('authorUid' in data && isValidString(data.authorUid, 1, 128)) &&
+        isValidOptionalString(data, 'authorName', 0, 100) &&
+        isValidOptionalString(data, 'authorUsername', 0, 50) &&
+        isValidOptionalString(data, 'authorRole', 0, 50) &&
+        isValidOptionalString(data, 'createdAt', 0, 50) &&
+        (!('taggedUserIds' in data) || isValidList(data.taggedUserIds, 50))
+      );
+    }
+
+    function isValidNotification(data) {
+      return (
+        ('recipientUid' in data && isValidString(data.recipientUid, 1, 128)) &&
+        ('senderUid' in data && isValidString(data.senderUid, 1, 128)) &&
+        ('type' in data && data.type in ['tag', 'like', 'comment']) &&
+        ('message' in data && isValidString(data.message, 1, 500)) &&
+        ('read' in data && data.read is bool) &&
+        isValidOptionalString(data, 'senderName', 0, 100) &&
+        isValidOptionalString(data, 'senderUsername', 0, 50) &&
+        isValidOptionalString(data, 'postId', 0, 128) &&
+        isValidOptionalString(data, 'postTitle', 0, 200) &&
+        isValidOptionalString(data, 'createdAt', 0, 50)
+      );
+    }
+
+    function isValidEvent(data) {
+      return (
+        ('title' in data && isValidString(data.title, 1, 200)) &&
+        ('date' in data && isValidString(data.date, 1, 50)) &&
+        isValidOptionalString(data, 'time', 0, 50) &&
+        isValidOptionalString(data, 'location', 0, 200) &&
+        isValidOptionalString(data, 'description', 0, 1000) &&
+        isValidOptionalString(data, 'kind', 0, 50) &&
+        isValidOptionalString(data, 'createdAt', 0, 50) &&
+        isValidOptionalString(data, 'createdBy', 0, 128)
+      );
+    }
+
+    function isValidExecutive(data) {
+      return (
+        ('name' in data && isValidString(data.name, 1, 100)) &&
+        ('position' in data && isValidString(data.position, 1, 100)) &&
+        isValidOptionalString(data, 'level', 0, 50) &&
+        isValidOptionalString(data, 'dept', 0, 100) &&
+        isValidOptionalString(data, 'photo', 0, 1000) &&
+        (!('order' in data) || (data.order is number)) &&
+        isValidOptionalString(data, 'createdAt', 0, 50) &&
+        isValidOptionalString(data, 'updatedAt', 0, 50)
+      );
+    }
+
+    function isValidPastExecutive(data) {
+      return (
+        ('name' in data && isValidString(data.name, 1, 100)) &&
+        ('position' in data && isValidString(data.position, 1, 100)) &&
+        isValidOptionalString(data, 'level', 0, 50) &&
+        isValidOptionalString(data, 'dept', 0, 100) &&
+        isValidOptionalString(data, 'photo', 0, 1000) &&
+        (!('order' in data) || (data.order is number)) &&
+        isValidOptionalString(data, 'createdAt', 0, 50) &&
+        isValidOptionalString(data, 'updatedAt', 0, 50) &&
+        isValidOptionalString(data, 'archivedAt', 0, 50)
+      );
+    }
+
+    function isValidSettings(data) {
+      return (
+        isValidOptionalString(data, 'proChatNumber', 0, 30) &&
+        isValidOptionalString(data, 'proChatDisplay', 0, 50) &&
+        isValidOptionalString(data, 'whatsappChannel', 0, 200) &&
+        isValidOptionalString(data, 'email', 0, 100) &&
+        isValidOptionalString(data, 'updatedAt', 0, 50) &&
+        (!('socials' in data) || isValidList(data.socials, 20))
+      );
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    // ── USERS ─────────────────────────────────────────────────────
     match /users/{userId} {
-      // Any authenticated user can read for member lookup, username checks, and mentions
-      allow read: if isAuthenticated();
+      // Read: Any authenticated member can read user documents (directory, mentions, auth status).
+      // Unauthenticated visitors are strictly limited to querying by username to check availability during registration.
+      allow get: if isAuthenticated();
+      allow list: if isAuthenticated() || (resource.data.username != null);
 
-      // Users can create their own profile during registration
-      // Cannot self-assign an executive/admin role
-      allow create: if isAuthenticated() &&
-        request.auth.uid == userId &&
-        (request.resource.data.get('role', 'member') == 'member');
-
-      // Users can update their own profile; admins can update any user (including roles)
-      // Standard members cannot escalate their role to executive/admin
-      allow update: if isAuthenticated() && (
-        isAdmin() || (
-          request.auth.uid == userId &&
-          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) ||
-           request.resource.data.role == resource.data.role)
+      // Create:
+      // - Authenticated user creating their own document
+      // - Non-admin cannot assign themselves an executive/admin role (role must be 'member' or not set)
+      // - Non-admin cannot self-verify (isVerified must be false or not set)
+      // - Admins can create user profiles with any role
+      allow create: if (
+        (
+          isOwner(userId) &&
+          (!('role' in request.resource.data) || request.resource.data.role == 'member') &&
+          (!('isVerified' in request.resource.data) || request.resource.data.isVerified == false) &&
+          isValidUser(request.resource.data)
+        ) ||
+        (
+          isAdmin() &&
+          isValidUser(request.resource.data)
         )
       );
 
-      // Only admins can delete accounts
+      // Update:
+      // - Admins can update any profile (e.g. assigning roles or editing fields)
+      // - Standard users can only update their own document, cannot escalate role, and username is immutable
+      allow update: if (
+        (
+          isAdmin() &&
+          isValidUser(request.resource.data)
+        ) ||
+        (
+          isOwner(userId) &&
+          // Cannot modify or escalate role
+          (!('role' in resource.data) || request.resource.data.role == resource.data.role) &&
+          (!('role' in request.resource.data) || request.resource.data.role in ['member', resource.data.role]) &&
+          // Username is immutable
+          (!('username' in resource.data) || request.resource.data.username == resource.data.username) &&
+          isValidUser(request.resource.data)
+        )
+      );
+
+      // Delete: Admin only
       allow delete: if isAdmin();
     }
 
-    // ── Posts Collection ───────────────────────────────────────────
+    // ── POSTS & COMMENTS ──────────────────────────────────────────
     match /posts/{postId} {
+      // Read: Only verified members and admins can view community posts
       allow read: if isVerified();
 
+      // Create: Verified members authoring their own post with body <= 500
       allow create: if isVerified() &&
-        request.resource.data.authorUid == request.auth.uid &&
+        request.auth.uid == request.resource.data.authorUid &&
         request.resource.data.body is string &&
         request.resource.data.body.size() > 0 &&
-        request.resource.data.body.size() <= 500;
+        request.resource.data.body.size() <= 500 &&
+        isValidPost(request.resource.data);
 
-      allow update: if isAuthenticated() && (
-        isAdmin() ||
-        (isVerified() && resource.data.authorUid == request.auth.uid) ||
-        (isVerified() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']))
+      // Update:
+      // 1. Admins can update any post
+      // 2. Verified authors can update their own post (authorUid and createdAt immutable)
+      // 3. Verified members can toggle their like (only 'likes' array modified)
+      allow update: if (
+        (isAdmin() && isValidPost(request.resource.data)) ||
+        (
+          isVerified() &&
+          request.auth.uid == resource.data.authorUid &&
+          request.resource.data.authorUid == resource.data.authorUid &&
+          (!('createdAt' in resource.data) || request.resource.data.createdAt == resource.data.createdAt) &&
+          isValidPost(request.resource.data)
+        ) ||
+        (
+          isVerified() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']) &&
+          (!('likes' in request.resource.data) || isValidList(request.resource.data.likes, 10000))
+        )
       );
 
-      allow delete: if isAdmin() || (isVerified() && resource.data.authorUid == request.auth.uid);
+      // Delete: Admins or the post author
+      allow delete: if isAdmin() || (isVerified() && request.auth.uid == resource.data.authorUid);
 
-      // Comments Subcollection
+      // Subcollection: Comments
       match /comments/{commentId} {
+        // Read: Verified members
         allow read: if isVerified();
 
+        // Create: Verified member authoring the comment
         allow create: if isVerified() &&
-          request.resource.data.authorUid == request.auth.uid &&
+          request.auth.uid == request.resource.data.authorUid &&
           request.resource.data.text is string &&
-          request.resource.data.text.size() > 0;
+          request.resource.data.text.size() > 0 &&
+          request.resource.data.text.size() <= 500 &&
+          isValidComment(request.resource.data);
 
+        // Update: Comment author updating their own comment
         allow update: if isVerified() &&
-          resource.data.authorUid == request.auth.uid;
+          request.auth.uid == resource.data.authorUid &&
+          request.resource.data.authorUid == resource.data.authorUid &&
+          (!('createdAt' in resource.data) || request.resource.data.createdAt == resource.data.createdAt) &&
+          isValidComment(request.resource.data);
 
+        // Delete: Admins, the comment author, or the post author
         allow delete: if isAdmin() || (
           isVerified() && (
-            resource.data.authorUid == request.auth.uid ||
-            get(/databases/$(database)/documents/posts/$(postId)).data.authorUid == request.auth.uid
+            request.auth.uid == resource.data.authorUid ||
+            request.auth.uid == get(/databases/$(database)/documents/posts/$(postId)).data.authorUid
           )
         );
       }
     }
 
-    // ── Notifications Collection ───────────────────────────────────
+    // ── NOTIFICATIONS ─────────────────────────────────────────────
     match /notifications/{notificationId} {
-      allow read: if isAuthenticated() && resource.data.recipientUid == request.auth.uid;
+      // Read: Only the intended recipient
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.recipientUid;
 
-      // Allow authenticated user to create a notification for another user
+      // Create: Authenticated sender notifying another user (cannot self-notify)
       allow create: if isAuthenticated() &&
-        request.resource.data.senderUid == request.auth.uid &&
-        request.resource.data.recipientUid != request.auth.uid;
+        request.auth.uid == request.resource.data.senderUid &&
+        request.resource.data.recipientUid != request.auth.uid &&
+        request.resource.data.read == false &&
+        isValidNotification(request.resource.data);
 
-      // Allow recipient to mark notification as read
+      // Update: Recipient can mark notification as read (only 'read' field allowed to change)
       allow update: if isAuthenticated() &&
-        resource.data.recipientUid == request.auth.uid &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+        request.auth.uid == resource.data.recipientUid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']) &&
+        (request.resource.data.read is bool);
 
-      // Allow recipient to delete their notification
-      allow delete: if isAuthenticated() && resource.data.recipientUid == request.auth.uid;
+      // Delete: Recipient can delete their notification
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.recipientUid;
     }
 
-    // ── Events Collection ──────────────────────────────────────────
+    // ── EVENTS ────────────────────────────────────────────────────
     match /events/{eventId} {
+      // Read: Public for landing page
       allow read: if true;
-      allow write: if isAdmin();
+
+      // Write: Admin only
+      allow create, update: if isAdmin() && isValidEvent(request.resource.data);
+      allow delete: if isAdmin();
     }
 
-    // ── Current Executives Collection ──────────────────────────────
+    // ── CURRENT EXECUTIVES ────────────────────────────────────────
     match /executives/{execId} {
+      // Read: Public for landing page
       allow read: if true;
-      allow write: if isAdmin();
+
+      // Write: Admin only
+      allow create, update: if isAdmin() && isValidExecutive(request.resource.data);
+      allow delete: if isAdmin();
     }
 
-    // ── Past Executives Collection ─────────────────────────────────
+    // ── PAST EXECUTIVES ───────────────────────────────────────────
     match /past_executives/{execId} {
+      // Read: Verified members only
       allow read: if isVerified();
-      allow write: if isAdmin();
+
+      // Write: Admin only
+      allow create, update: if isAdmin() && isValidPastExecutive(request.resource.data);
+      allow delete: if isAdmin();
     }
 
-    // ── Site Settings Collection ───────────────────────────────────
+    // ── SETTINGS ──────────────────────────────────────────────────
     match /settings/{settingId} {
+      // Read: Public for contact section & footer
       allow read: if true;
-      allow write: if isAdmin();
+
+      // Write: Admin only
+      allow create, update: if isAdmin() && isValidSettings(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // ── DEFAULT DENY ──────────────────────────────────────────────
+    // Deny all reads and writes to any unlisted collections or paths
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
