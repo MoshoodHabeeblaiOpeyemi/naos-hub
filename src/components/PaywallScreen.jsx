@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { db, auth } from '../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { usePaystack } from '../hooks/usePaystack.js';
+import { generatePassId } from '../utils/passId.js';
 
 const AMOUNT_KOBO = 100000; // ₦1,000
 
@@ -92,7 +93,7 @@ export default function PaywallScreen({ userProfile, onVerified }) {
         const ref = transaction?.reference || transaction?.trxref || '';
         try {
           if (!db || !uid) throw new Error('Firestore not available');
-          const passId = `NAOS-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+          const passId = userProfile?.passId || generatePassId();
           await updateDoc(doc(db, 'users', uid), {
             isVerified:       true,
             passId,

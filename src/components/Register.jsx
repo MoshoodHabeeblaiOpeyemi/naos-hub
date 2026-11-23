@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { auth, db } from '../firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { calculateAcademicLevel } from '../utils/academicLevel';
+import { generatePassId } from '../utils/passId';
+import { initFCMAndPrompt } from '../utils/fcm';
 
 const VALID_LGAS = ['Oyo East', 'Oyo West', 'Afijio', 'Atiba'];
 const ENTRY_YEARS = [2020, 2021, 2022, 2023, 2024, 2025, 2026];
@@ -11,6 +13,7 @@ const ENTRY_YEARS = [2020, 2021, 2022, 2023, 2024, 2025, 2026];
 export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode, setUserProfile }) {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
@@ -51,6 +54,17 @@ export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode, setU
       return;
     }
 
+    const cleanUsername = username.trim().toLowerCase().replace(/^@+/, '');
+    if (!cleanUsername) {
+      setMessage('Please choose a username.');
+      return;
+    }
+
+    if (!/^[a-z0-9_]{3,20}$/.test(cleanUsername)) {
+      setMessage('Username must be 3-20 characters long and contain only letters, numbers, and underscores.');
+      return;
+    }
+
     if (!entryYear) {
       setMessage('Please select your Year of Entry.');
       return;
@@ -69,12 +83,24 @@ export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode, setU
 
     setLoading(true);
     try {
+      // Check Firestore to ensure username is unique
+      const usernameQuery = query(collection(db, 'users'), where('username', '==', cleanUsername));
+      const usernameSnap = await getDocs(usernameQuery);
+      if (!usernameSnap.empty) {
+        setMessage(`The username @${cleanUsername} is already taken. Please choose another.`);
+        setLoading(false);
+        return;
+      }
+
       const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const uid = userCredential.user.uid;
+      const passId = generatePassId();
 
-      // Save user record to Firestore with calculated academic level & member role
+      // Save user record to Firestore with calculated academic level, username & member role
       await setDoc(doc(db, 'users', uid), {
         name: name.trim(),
+        username: cleanUsername,
+        passId,
         matric: matric.trim().toUpperCase(),
         dept: dept.trim(),
         entryYear: Number(entryYear),
@@ -90,9 +116,12 @@ export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode, setU
 
       setMessage('Account created successfully!');
       setIsLoggedIn(true);
+      initFCMAndPrompt(uid);
       if (setUserProfile) {
         setUserProfile({
           name: name.trim(),
+          username: cleanUsername,
+          passId,
           matric: matric.trim().toUpperCase(),
           dept: dept.trim(),
           entryYear: Number(entryYear),
@@ -169,19 +198,39 @@ export default function Register({ setShowAuth, setIsLoggedIn, setAuthMode, setU
         )}
 
         <form onSubmit={handleRegister} className="space-y-3">
-          {/* Full Name */}
-          <div>
-            <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-name">
-              Full Name
-            </label>
-            <input
-              id="reg-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              placeholder="e.g. Adebayo Olumide"
-              className="w-full border border-naos-gray rounded-md px-3 py-2 text-sm text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition"
-            />
+          {/* Full Name & Username */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-name">
+                Full Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="reg-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                placeholder="e.g. Adebayo Olumide"
+                className="w-full border border-naos-gray rounded-md px-3 py-2 text-sm text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase text-naos-text mb-1" htmlFor="reg-username">
+                Username (@) <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-naos-text/60 font-semibold text-sm">
+                  @
+                </span>
+                <input
+                  id="reg-username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  placeholder="username"
+                  className="w-full border border-naos-gray rounded-md pl-7 pr-3 py-2 text-sm text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Email & Phone */}

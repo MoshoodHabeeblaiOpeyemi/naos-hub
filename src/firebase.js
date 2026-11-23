@@ -10,6 +10,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getMessaging, isSupported } from "firebase/messaging";
 
 // Validate required env vars
 const requiredEnvs = [
@@ -26,6 +27,7 @@ const missing = requiredEnvs.filter((key) => !import.meta.env[key]);
 let app = null;
 let auth = null;
 let db = null;
+let messaging = null;
 
 if (missing.length > 0) {
   console.warn(
@@ -45,9 +47,20 @@ if (missing.length > 0) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
+
+    // Initialize Messaging if supported by the browser
+    if (typeof window !== "undefined") {
+      isSupported().then((supported) => {
+        if (supported) {
+          messaging = getMessaging(app);
+        }
+      }).catch((err) => {
+        console.warn("[Firebase] FCM is not supported in this browser environment:", err.message);
+      });
+    }
   } catch (err) {
     console.warn("[Firebase] Failed to initialize Firebase:", err.message);
   }
 }
 
-export { app, auth, db };
+export { app, auth, db, messaging };

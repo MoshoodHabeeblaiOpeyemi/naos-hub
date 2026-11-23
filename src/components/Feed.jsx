@@ -10,14 +10,16 @@ import {
   arrayUnion,
   arrayRemove,
   addDoc,
-  serverTimestamp,
 } from 'firebase/firestore';
+import MentionTextarea from './MentionTextarea.jsx';
+import MentionInput from './MentionInput.jsx';
+import { createNotification, notifyTaggedUsers } from '../utils/notifications.js';
 
 /**
  * Helper to format role names into displayable badges.
  * Returns null for standard 'member' role.
  */
-export const formatRoleBadge = (role) => {
+const formatRoleBadge = (role) => {
   if (!role || role.toLowerCase() === 'member') return null;
   const lower = role.toLowerCase();
   if (lower === 'pro1') return 'PRO I';
@@ -42,10 +44,237 @@ function RoleBadge({ role }) {
   );
 }
 
+/**
+ * Parses text and highlights @mentions
+ */
+function formatMentions(text = '') {
+  if (!text) return '';
+  const parts = text.split(/(@[a-zA-Z0-9_]+)/g);
+  return parts.map((part, idx) => {
+    if (part.startsWith('@')) {
+      return (
+        <span key={idx} className="font-semibold text-naos-green hover:underline">
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
+}
+
+/**
+ * Create Post Card — Available to all verified members
+ */
+function CreatePostCard({ userProfile }) {
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [taggedUids, setTaggedUids] = useState([]);
+  const [showImageField, setShowImageField] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  const currentUserId = auth?.currentUser?.uid;
+
+  const handlePostSubmit = async (e) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    if (!db || !currentUserId) {
+      setErrorMsg('Please sign in to publish a post.');
+      return;
+    }
+
+    if (!body.trim()) {
+      setErrorMsg('Please enter your post content.');
+      return;
+    }
+
+    if (body.trim().length > 500) {
+      setErrorMsg('Posts cannot exceed 500 characters.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const postTitle = title.trim() || 'Community Post';
+      const docRef = await addDoc(collection(db, 'posts'), {
+        title: postTitle,
+        body: body.trim(),
+        imageUrl: imageUrl.trim() || null,
+        authorUid: currentUserId,
+        authorName: userProfile?.name || auth.currentUser.email?.split('@')[0] || 'Member',
+        authorUsername: userProfile?.username || '',
+        authorRole: userProfile?.role || 'member',
+        likes: [],
+        taggedUserIds: taggedUids || [],
+        createdAt: new Date().toISOString(),
+      });
+
+      // Notify all tagged users
+      if (taggedUids && taggedUids.length > 0) {
+        await notifyTaggedUsers({
+          taggedUids,
+          senderUid: currentUserId,
+          senderName: userProfile?.name || 'A member',
+          senderUsername: userProfile?.username || '',
+          postId: docRef.id,
+          postTitle,
+          snippet: body.trim(),
+          isComment: false,
+        });
+      }
+
+      setTitle('');
+      setBody('');
+      setImageUrl('');
+      setShowImageField(false);
+      setTaggedUids([]);
+      setSuccessMsg('Your post has been shared with the community!');
+      setTimeout(() => setSuccessMsg(''), 4000);
+    } catch (err) {
+      console.error('Failed to create post:', err);
+      setErrorMsg(err.message || 'Failed to publish post.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="mb-8 rounded-xl border border-naos-gray/50 bg-white p-5 sm:p-6 shadow-sm">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="h-10 w-10 rounded-full bg-naos-green/10 text-naos-green flex items-center justify-center font-bold text-sm">
+          {(userProfile?.name || 'M').charAt(0).toUpperCase()}
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-sm text-naos-dark">
+              {userProfile?.name || 'You'}
+            </span>
+            {userProfile?.username && (
+              <span className="text-xs text-naos-green font-semibold">
+                @{userProfile.username}
+              </span>
+            )}
+            <RoleBadge role={userProfile?.role} />
+          </div>
+          <span className="text-[11px] text-naos-text/60">Share an update with verified members</span>
+        </div>
+      </div>
+
+      {errorMsg && (
+        <div className="mb-3 rounded-md bg-red-100 p-2.5 text-xs text-red-800 border border-red-200">
+          {errorMsg}
+        </div>
+      )}
+      {successMsg && (
+        <div className="mb-3 rounded-md bg-green-100 p-2.5 text-xs text-green-800 border border-green-200">
+          {successMsg}
+        </div>
+      )}
+
+      <form onSubmit={handlePostSubmit} className="space-y-3">
+        {/* Optional Title */}
+        <div>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Post Title (optional)"
+            className="w-full border border-naos-gray rounded-md px-3 py-2 text-xs text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition"
+          />
+        </div>
+
+        {/* Post Body with Mentions Autocomplete & 500 Char limit */}
+        <MentionTextarea
+          id="feed-post-body"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          onTaggedUsersChange={setTaggedUids}
+          maxLength={500}
+          rows={3}
+          placeholder="Share news, ask questions, or update members... Type @ to tag someone!"
+          className="w-full border border-naos-gray rounded-md px-3.5 py-2.5 text-sm text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition resize-y"
+        />
+
+        {/* Image URL input toggle */}
+        {showImageField ? (
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center gap-2">
+              <input
+                type="url"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                placeholder="Image URL (e.g. https://...)"
+                className="flex-1 border border-naos-gray rounded-md px-3 py-1.5 text-xs text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setImageUrl('');
+                  setShowImageField(false);
+                }}
+                className="text-xs text-naos-text/60 hover:text-red-600 transition px-2 py-1"
+              >
+                Cancel
+              </button>
+            </div>
+            {imageUrl && (
+              <div className="rounded-md overflow-hidden border border-naos-gray/30 max-h-40 bg-gray-50 flex items-center justify-center">
+                <img
+                  src={imageUrl}
+                  alt="Preview"
+                  className="max-h-40 w-auto object-cover"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setShowImageField(true)}
+              className="inline-flex items-center gap-1.5 text-xs text-naos-text hover:text-naos-green transition py-1 cursor-pointer"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span>Add Image URL</span>
+            </button>
+          </div>
+        )}
+
+        <div className="flex justify-end pt-2 border-t border-naos-gray/20">
+          <button
+            type="submit"
+            disabled={submitting || !body.trim()}
+            className="inline-flex items-center gap-2 rounded-md bg-naos-green px-5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-naos-dark disabled:opacity-50 cursor-pointer"
+          >
+            {submitting ? (
+              <>
+                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Posting…
+              </>
+            ) : (
+              'Post Update'
+            )}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function PostCard({ post, userProfile }) {
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
+  const [commentTaggedUids, setCommentTaggedUids] = useState([]);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
 
@@ -60,15 +289,19 @@ function PostCard({ post, userProfile }) {
     const commentsRef = collection(db, 'posts', post.id, 'comments');
     const q = query(commentsRef, orderBy('createdAt', 'asc'));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items = snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      }));
-      setComments(items);
-    }, (err) => {
-      console.warn('Failed to load comments:', err);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const items = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
+        setComments(items);
+      },
+      (err) => {
+        console.warn('Failed to load comments:', err);
+      }
+    );
 
     return () => unsubscribe();
   }, [post.id, showComments]);
@@ -88,6 +321,20 @@ function PostCard({ post, userProfile }) {
         await updateDoc(postRef, {
           likes: arrayUnion(currentUserId),
         });
+
+        // Create in-app notification for the post author
+        if (post.authorUid && post.authorUid !== currentUserId) {
+          await createNotification({
+            recipientUid: post.authorUid,
+            senderUid: currentUserId,
+            senderName: userProfile?.name || 'A member',
+            senderUsername: userProfile?.username || '',
+            type: 'like',
+            postId: post.id,
+            postTitle: post.title || 'post',
+            message: `${userProfile?.name || 'A member'} liked your post "${post.title || 'post'}".`,
+          });
+        }
       }
     } catch (err) {
       console.error('Failed to toggle like:', err);
@@ -107,10 +354,42 @@ function PostCard({ post, userProfile }) {
         text: newComment.trim(),
         authorUid: auth.currentUser.uid,
         authorName: userProfile?.name || auth.currentUser.email?.split('@')[0] || 'Member',
+        authorUsername: userProfile?.username || '',
         authorRole: userProfile?.role || 'member',
+        taggedUserIds: commentTaggedUids || [],
         createdAt: new Date().toISOString(),
       });
+
+      // 1. Notify post author if not commenter
+      if (post.authorUid && post.authorUid !== auth.currentUser.uid) {
+        await createNotification({
+          recipientUid: post.authorUid,
+          senderUid: auth.currentUser.uid,
+          senderName: userProfile?.name || 'A member',
+          senderUsername: userProfile?.username || '',
+          type: 'comment',
+          postId: post.id,
+          postTitle: post.title || 'post',
+          message: `${userProfile?.name || 'A member'} commented on your post: "${newComment.trim().slice(0, 45)}..."`,
+        });
+      }
+
+      // 2. Notify any users tagged in the comment
+      if (commentTaggedUids && commentTaggedUids.length > 0) {
+        await notifyTaggedUsers({
+          taggedUids: commentTaggedUids,
+          senderUid: auth.currentUser.uid,
+          senderName: userProfile?.name || 'A member',
+          senderUsername: userProfile?.username || '',
+          postId: post.id,
+          postTitle: post.title || '',
+          snippet: newComment.trim(),
+          isComment: true,
+        });
+      }
+
       setNewComment('');
+      setCommentTaggedUids([]);
     } catch (err) {
       console.error('Failed to add comment:', err);
     } finally {
@@ -139,6 +418,11 @@ function PostCard({ post, userProfile }) {
               <span className="font-bold text-sm text-naos-dark">
                 {post.authorName || 'NAOS Member'}
               </span>
+              {post.authorUsername && (
+                <span className="text-xs text-naos-green font-medium">
+                  @{post.authorUsername}
+                </span>
+              )}
               <RoleBadge role={post.authorRole} />
             </div>
             <span className="text-[11px] text-naos-text/60">{formattedDate}</span>
@@ -147,13 +431,15 @@ function PostCard({ post, userProfile }) {
       </div>
 
       {/* Title */}
-      <h3 className="text-lg font-bold text-naos-dark mb-2">
-        {post.title}
-      </h3>
+      {post.title && (
+        <h3 className="text-lg font-bold text-naos-dark mb-2">
+          {post.title}
+        </h3>
+      )}
 
-      {/* Body */}
+      {/* Body with @mentions highlighting */}
       <p className="text-sm text-naos-text leading-relaxed whitespace-pre-line mb-4">
-        {post.body}
+        {formatMentions(post.body)}
       </p>
 
       {/* Optional Image */}
@@ -161,7 +447,7 @@ function PostCard({ post, userProfile }) {
         <div className="mb-4 rounded-lg overflow-hidden border border-naos-gray/40 bg-gray-50 max-h-96 flex items-center justify-center">
           <img
             src={post.imageUrl}
-            alt={post.title}
+            alt={post.title || 'Post image'}
             className="w-full h-auto object-cover max-h-96"
             onError={(e) => {
               e.target.style.display = 'none';
@@ -215,6 +501,7 @@ function PostCard({ post, userProfile }) {
               />
             </svg>
             <span>{showComments ? 'Hide Comments' : 'Comments'}</span>
+            <span className="text-[11px] opacity-75">({comments.length})</span>
           </button>
         </div>
       </div>
@@ -239,6 +526,11 @@ function PostCard({ post, userProfile }) {
                       <span className="font-bold text-naos-dark">
                         {comment.authorName || 'Member'}
                       </span>
+                      {comment.authorUsername && (
+                        <span className="text-[11px] text-naos-green font-medium">
+                          @{comment.authorUsername}
+                        </span>
+                      )}
                       <RoleBadge role={comment.authorRole} />
                     </div>
                     <span className="text-[10px] text-naos-text/60">
@@ -251,7 +543,7 @@ function PostCard({ post, userProfile }) {
                     </span>
                   </div>
                   <p className="text-naos-text leading-relaxed whitespace-pre-line">
-                    {comment.text}
+                    {formatMentions(comment.text)}
                   </p>
                 </div>
               ))}
@@ -262,20 +554,20 @@ function PostCard({ post, userProfile }) {
             </p>
           )}
 
-          {/* Add Comment Form */}
-          <form onSubmit={handleAddComment} className="flex gap-2">
-            <input
-              type="text"
+          {/* Add Comment Form with Mention Autocomplete */}
+          <form onSubmit={handleAddComment} className="flex gap-2 items-start">
+            <MentionInput
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Write a comment..."
-              required
-              className="flex-1 rounded-md border border-naos-gray bg-white px-3 py-2 text-xs text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition"
+              onTaggedUsersChange={setCommentTaggedUids}
+              placeholder="Write a comment (use @ to tag members)..."
+              maxLength={280}
+              className="w-full rounded-md border border-naos-gray bg-white px-3 py-2 text-xs text-naos-dark focus:outline-none focus:ring-2 focus:ring-naos-green focus:border-transparent transition"
             />
             <button
               type="submit"
               disabled={submittingComment || !newComment.trim()}
-              className="rounded-md bg-naos-green px-4 py-2 text-xs font-bold text-white transition hover:bg-naos-dark disabled:opacity-50 cursor-pointer shadow-xs"
+              className="rounded-md bg-naos-green px-4 py-2 text-xs font-bold text-white transition hover:bg-naos-dark disabled:opacity-50 cursor-pointer shadow-xs shrink-0"
             >
               {submittingComment ? 'Posting...' : 'Post'}
             </button>
@@ -288,14 +580,11 @@ function PostCard({ post, userProfile }) {
 
 export default function Feed({ userProfile }) {
   const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(db));
 
   // Subscribe to all posts ordered by createdAt descending
   useEffect(() => {
-    if (!db) {
-      setLoading(false);
-      return;
-    }
+    if (!db) return;
 
     const postsRef = collection(db, 'posts');
     const q = query(postsRef, orderBy('createdAt', 'desc'));
@@ -323,7 +612,7 @@ export default function Feed({ userProfile }) {
     <section className="py-10 bg-naos-gray/30 min-h-[calc(100vh-16rem)]">
       <div className="mx-auto max-w-3xl px-4 sm:px-6">
         {/* Feed Header */}
-        <div className="mb-8 border-b border-naos-gray/40 pb-5">
+        <div className="mb-6 border-b border-naos-gray/40 pb-5">
           <div className="flex items-center gap-2 mb-1">
             <span className="w-2.5 h-2.5 rounded-full bg-naos-gold" />
             <h1 className="text-2xl sm:text-3xl font-bold text-naos-dark">
@@ -334,6 +623,9 @@ export default function Feed({ userProfile }) {
             Official announcements, press releases, and discussions for NAOS Unilorin members.
           </p>
         </div>
+
+        {/* Create Post Section — Available to all verified members */}
+        <CreatePostCard userProfile={userProfile} />
 
         {/* Feed Posts */}
         {loading ? (
@@ -356,7 +648,7 @@ export default function Feed({ userProfile }) {
               No Community Posts Yet
             </h2>
             <p className="mt-1 text-xs text-naos-text max-w-sm mx-auto">
-              Announcements and updates will appear here once the Public Relations Officers publish them.
+              Be the first to share an update with the NAOS community!
             </p>
           </div>
         )}

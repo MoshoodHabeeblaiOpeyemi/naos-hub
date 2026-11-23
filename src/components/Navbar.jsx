@@ -4,6 +4,7 @@ import { site } from '../data/site.js';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
 import ConfirmModal from './ConfirmModal.jsx';
+import NotificationBell from './NotificationBell.jsx';
 
 /**
  * Sticky top navigation.
@@ -17,7 +18,7 @@ export default function Navbar({ setShowAuth, isLoggedIn, setIsLoggedIn, userPro
   const location = useLocation();
 
   const role = (userProfile?.role || '').toLowerCase();
-  const isAdmin = role === 'pro1' || role === 'pro2';
+  const isAdmin = role === 'pro1' || role === 'pro2' || role === 'president';
 
   // Close mobile menu on screen resize
   useEffect(() => {
@@ -89,31 +90,36 @@ export default function Navbar({ setShowAuth, isLoggedIn, setIsLoggedIn, userPro
             </span>
           </Link>
 
-          {/* Mobile Hamburger Toggle */}
-          <button
-            type="button"
-            onClick={() => setOpen((value) => !value)}
-            aria-expanded={open}
-            aria-controls="primary-menu"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-md text-white transition-colors hover:bg-white/10 md:hidden"
-          >
-            <span className="sr-only">{open ? 'Close main menu' : 'Open main menu'}</span>
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              className="h-6 w-6"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
+          {/* Mobile Right Action Area: Bell (if logged in) + Hamburger */}
+          <div className="flex items-center gap-2 md:hidden">
+            {isLoggedIn && auth?.currentUser?.uid && (
+              <NotificationBell currentUserId={auth.currentUser.uid} />
+            )}
+            <button
+              type="button"
+              onClick={() => setOpen((value) => !value)}
+              aria-expanded={open}
+              aria-controls="primary-menu"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-md text-white transition-colors hover:bg-white/10"
             >
-              {open ? (
-                <path d="M6 6l12 12M18 6L6 18" />
-              ) : (
-                <path d="M4 7h16M4 12h16M4 17h16" />
-              )}
-            </svg>
-          </button>
+              <span className="sr-only">{open ? 'Close main menu' : 'Open main menu'}</span>
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-6 w-6"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                {open ? (
+                  <path d="M6 6l12 12M18 6L6 18" />
+                ) : (
+                  <path d="M4 7h16M4 12h16M4 17h16" />
+                )}
+              </svg>
+            </button>
+          </div>
 
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center gap-4">
@@ -153,6 +159,11 @@ export default function Navbar({ setShowAuth, isLoggedIn, setIsLoggedIn, userPro
                   >
                     Admin Panel
                   </Link>
+                )}
+
+                {/* Notifications Bell */}
+                {auth?.currentUser?.uid && (
+                  <NotificationBell currentUserId={auth.currentUser.uid} />
                 )}
 
                 <button

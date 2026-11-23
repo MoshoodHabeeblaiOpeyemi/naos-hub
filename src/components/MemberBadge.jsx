@@ -1,4 +1,5 @@
 import { forwardRef } from 'react';
+import { generatePassId } from '../utils/passId.js';
 
 /**
  * MemberBadge
@@ -9,14 +10,14 @@ import { forwardRef } from 'react';
  *
  * Props:
  *   profile — Firestore user doc { name, matric, lga, passId }
- *   uid     — Firebase Auth UID (fallback when passId not yet set)
+ *   uid     — Firebase Auth UID
  */
-const MemberBadge = forwardRef(function MemberBadge({ profile, uid }, ref) {
+const MemberBadge = forwardRef(function MemberBadge({ profile }, ref) {
   const name   = profile?.name   || 'NAOS Member';
   const matric = profile?.matric || '—';
   const lga    = profile?.lga    || '—';
-  // passId stored in Firestore; fall back to first 6 chars of UID
-  const passId = profile?.passId || `NAOS-${(uid || 'XXXXXX').substring(0, 6).toUpperCase()}`;
+  // passId stored in Firestore; fallback to 6 unguessable alphanumeric characters
+  const passId = profile?.passId || generatePassId();
 
   // NAOS brand colours as hex so html2canvas picks them up inline
   const GREEN  = '#1a5c38';   // naos-green
@@ -107,7 +108,7 @@ const MemberBadge = forwardRef(function MemberBadge({ profile, uid }, ref) {
             {/* Matric under the name */}
             <div style={{ marginTop: 5 }}>
               <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 7, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 1 }}>
-                Matric No
+                MATRIC NO
               </div>
               <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11, fontWeight: 600, letterSpacing: 1.5 }}>
                 {matric}

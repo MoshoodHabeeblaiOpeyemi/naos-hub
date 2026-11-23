@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { auth } from '../firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
+import { initFCMAndPrompt } from '../utils/fcm';
 
 export default function Login({ setShowAuth, setIsLoggedIn, setAuthMode }) {
   const navigate = useNavigate();
@@ -22,7 +23,9 @@ export default function Login({ setShowAuth, setIsLoggedIn, setAuthMode }) {
 
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      // Prompt user to allow notifications upon login and set up FCM
+      initFCMAndPrompt(userCredential.user.uid);
       setMessage('Signed in successfully!');
       setIsLoggedIn(true);
       setShowAuth(false);

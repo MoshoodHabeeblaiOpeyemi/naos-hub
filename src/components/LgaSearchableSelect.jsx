@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 
-export const OYO_LGAS = ['Oyo East', 'Oyo West', 'Afijio', 'Atiba'];
+const OYO_LGAS = ['Oyo East', 'Oyo West', 'Afijio', 'Atiba'];
 
 /**
  * Searchable dropdown component for selecting an Oyo State Local Government Area (LGA).

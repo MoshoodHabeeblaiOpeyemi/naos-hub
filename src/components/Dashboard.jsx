@@ -6,7 +6,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import ConfirmModal from './ConfirmModal.jsx';
 import MemberBadge from './MemberBadge.jsx';
 
-export default function Dashboard({ setIsLoggedIn, userProfile, setUserProfile }) {
+export default function Dashboard({ setIsLoggedIn, userProfile }) {
   const navigate = useNavigate();
   const [localProfile, setLocalProfile] = useState(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -35,16 +35,18 @@ export default function Dashboard({ setIsLoggedIn, userProfile, setUserProfile }
   const uid = auth?.currentUser?.uid;
 
   const role = (profile?.role || 'member').toLowerCase();
-  const isAdmin = role === 'pro1' || role === 'pro2';
+  const isAdmin = role === 'pro1' || role === 'pro2' || role === 'president';
 
   const formatRoleBadge = (r) => {
     if (!r || r === 'member') return null;
     if (r === 'pro1') return 'PRO I';
     if (r === 'pro2') return 'PRO II';
+    if (r === 'president') return 'PRESIDENT';
     return r.toUpperCase();
   };
   const roleBadge  = formatRoleBadge(role);
   const displayName = profile?.name || auth?.currentUser?.email?.split('@')[0] || 'Member';
+  const username = profile?.username;
 
   const handleConfirmLogout = async () => {
     setShowLogoutConfirm(false);
@@ -117,6 +119,11 @@ export default function Dashboard({ setIsLoggedIn, userProfile, setUserProfile }
               <div className="mt-1 flex items-center gap-2 flex-wrap text-sm text-naos-text">
                 <span>Welcome back,</span>
                 <span className="font-semibold text-naos-dark">{displayName}</span>
+                {username && (
+                  <span className="font-bold text-naos-green bg-naos-green/10 px-2 py-0.5 rounded-full text-xs">
+                    @{username}
+                  </span>
+                )}
                 <span>! Access your membership privileges and association resources.</span>
               </div>
             </div>
@@ -146,7 +153,13 @@ export default function Dashboard({ setIsLoggedIn, userProfile, setUserProfile }
 
           {/* ── Academic Summary Strip ───────────────────────────────────── */}
           {profile && (
-            <div className="mb-8 grid grid-cols-2 sm:grid-cols-4 gap-4 bg-white p-4 rounded-lg border border-naos-gray/40 shadow-xs">
+            <div className="mb-8 grid grid-cols-2 sm:grid-cols-5 gap-4 bg-white p-4 rounded-lg border border-naos-gray/40 shadow-xs">
+              <div>
+                <span className="block text-[11px] font-semibold uppercase text-naos-text/70">Username</span>
+                <span className="font-bold text-naos-green text-sm sm:text-base">
+                  {profile.username ? `@${profile.username}` : 'N/A'}
+                </span>
+              </div>
               <div>
                 <span className="block text-[11px] font-semibold uppercase text-naos-text/70">Matric No.</span>
                 <span className="font-bold text-naos-dark text-sm sm:text-base">{profile.matric || 'N/A'}</span>

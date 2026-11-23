@@ -12,6 +12,7 @@ import PaywallScreen from './components/PaywallScreen.jsx';
 import { auth, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
+import { initFCMAndPrompt } from './utils/fcm';
 
 /**
  * VerifiedRoute — requires login AND isVerified === true.
@@ -52,6 +53,8 @@ function AppContent() {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setIsLoggedIn(true);
+        // Prompt for notification permission & initialize FCM
+        initFCMAndPrompt(user.uid);
         if (db) {
           try {
             const snap = await getDoc(doc(db, 'users', user.uid));
@@ -71,8 +74,8 @@ function AppContent() {
   }, []);
 
   const role    = (userProfile?.role || 'member').toLowerCase();
-  // Only pro1 and pro2 have admin access — no gen_sec
-  const isAdmin = role === 'pro1' || role === 'pro2';
+  // Only pro1, pro2, and president have admin access — no gen_sec
+  const isAdmin = role === 'pro1' || role === 'pro2' || role === 'president';
 
   if (authLoading) {
     return (

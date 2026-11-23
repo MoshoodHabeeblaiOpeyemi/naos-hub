@@ -6,7 +6,9 @@ import {
 } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
 import ConfirmModal from './ConfirmModal.jsx';
+import MentionTextarea from './MentionTextarea.jsx';
 import { formatEventDate, formatEventTime } from '../data/events.js';
+import { notifyTaggedUsers } from '../utils/notifications.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -17,7 +19,7 @@ const EVENT_KIND_OPTIONS = [
   { value: 'academic', label: 'Academic' },
 ];
 
-// Only pro1 and pro2 are admins — gen_sec removed
+// Only pro1, pro2, and president are admins — gen_sec removed
 const ROLE_OPTIONS = [
   { value: 'member',     label: 'Member',              isExec: false },
   { value: 'president',  label: 'President',           isExec: true  },
@@ -62,6 +64,7 @@ export default function AdminDashboard({ userProfile }) {
   const [title, setTitle]       = useState('');
   const [body, setBody]         = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [taggedUids, setTaggedUids] = useState([]);
   const [loading, setLoading]   = useState(false);
   const [posts, setPosts]       = useState([]);
   const [fetchingPosts, setFetchingPosts] = useState(false);
@@ -95,8 +98,8 @@ export default function AdminDashboard({ userProfile }) {
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
-  const role = userProfile?.role || 'pro1';
-  const roleLabel = role.toLowerCase() === 'pro1' ? 'PRO I' : role.toLowerCase() === 'pro2' ? 'PRO II' : role.toUpperCase();
+  const role = (userProfile?.role || 'pro1').toLowerCase();
+  const roleLabel = role === 'pro1' ? 'PRO I' : role === 'pro2' ? 'PRO II' : role === 'president' ? 'PRESIDENT' : role.toUpperCase();
 
   const formatRoleName = (val) => {
     const found = ROLE_OPTIONS.find((r) => r.value === val);
@@ -177,19 +180,40 @@ export default function AdminDashboard({ userProfile }) {
     setMessage(null);
     if (!db) { setMessage({ type: 'error', text: 'Firestore not configured.' }); return; }
     if (!title.trim() || !body.trim()) { setMessage({ type: 'error', text: 'Title and Body are required.' }); return; }
+    if (body.trim().length > 500) { setMessage({ type: 'error', text: 'Post cannot exceed 500 characters.' }); return; }
     setLoading(true);
     try {
-      await addDoc(collection(db, 'posts'), {
-        title: title.trim(), body: body.trim(),
+      const postTitle = title.trim();
+      const docRef = await addDoc(collection(db, 'posts'), {
+        title: postTitle,
+        body: body.trim(),
         imageUrl: imageUrl.trim() || null,
         authorUid: auth?.currentUser?.uid || null,
         authorEmail: auth?.currentUser?.email || null,
-        authorName: userProfile?.name || auth?.currentUser?.email || 'PRO Officer',
+        authorName: userProfile?.name || auth?.currentUser?.email || 'Executive Officer',
+        authorUsername: userProfile?.username || '',
         authorRole: role,
+        likes: [],
+        taggedUserIds: taggedUids || [],
         createdAt: new Date().toISOString(),
       });
+
+      // Notify tagged users if any
+      if (taggedUids && taggedUids.length > 0) {
+        await notifyTaggedUsers({
+          taggedUids,
+          senderUid: auth?.currentUser?.uid,
+          senderName: userProfile?.name || 'Executive Officer',
+          senderUsername: userProfile?.username || '',
+          postId: docRef.id,
+          postTitle,
+          snippet: body.trim(),
+          isComment: false,
+        });
+      }
+
       setMessage({ type: 'success', text: 'Broadcast published!' });
-      setTitle(''); setBody(''); setImageUrl('');
+      setTitle(''); setBody(''); setImageUrl(''); setTaggedUids([]);
       fetchRecentPosts();
     } catch (err) {
       setMessage({ type: 'error', text: err.message || 'Failed to publish.' });
@@ -387,7 +411,7 @@ export default function AdminDashboard({ userProfile }) {
               <h1 className="text-3xl font-bold text-naos-dark">Admin Console</h1>
               <span className="inline-flex items-center rounded-full bg-naos-gold px-3 py-1 text-xs font-bold text-naos-dark shadow-xs">{roleLabel}</span>
             </div>
-            <p className="mt-1 text-sm text-naos-text">PRO Portal — Manage broadcasts, executives, events, and site settings.</p>
+            <p className="mt-1 text-sm text-naos-text">Executive Console — Manage broadcasts, executives, events, and site settings.</p>
           </div>
           <Link to="/dashboard" className="inline-flex items-center gap-2 rounded-md bg-white border border-naos-gray px-4 py-2 text-sm font-semibold text-naos-dark transition hover:bg-naos-gray/30 shadow-xs sm:w-auto">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
@@ -430,7 +454,16 @@ export default function AdminDashboard({ userProfile }) {
                   </div>
                   <div>
                     <label htmlFor="post-body" className="block text-xs font-semibold uppercase text-naos-text mb-1">Post Body <span className="text-red-500">*</span></label>
-                    <textarea id="post-body" rows="6" value={body} onChange={(e) => setBody(e.target.value)} required placeholder="Write the full broadcast message here..." className={`${field} resize-y`} />
+                    <MentionTextarea
+                      id="post-body"
+                      rows={5}
+                      value={body}
+                      onChange={(e) => setBody(e.target.value)}
+                      onTaggedUsersChange={setTaggedUids}
+                      maxLength={500}
+                      placeholder="Write the broadcast message here... Type @ to tag a member"
+                      className={`${field} resize-y`}
+                    />
                   </div>
                   <div className="pt-2 flex justify-end gap-3">
                     <button type="button" onClick={() => { setTitle(''); setBody(''); setImageUrl(''); }} className="px-4 py-2 text-sm text-naos-text hover:text-naos-dark transition">Clear</button>

@@ -1,0 +1,130 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        getUserData(request.auth.uid).role in ['president', 'pro1', 'pro2'];
+    }
+
+    function isVerified() {
+      return isAuthenticated() &&
+        (getUserData(request.auth.uid).get('isVerified', false) == true || isAdmin());
+    }
+
+    // ── Users Collection ───────────────────────────────────────────
+    match /users/{userId} {
+      // Any authenticated user can read for member lookup, username checks, and mentions
+      allow read: if isAuthenticated();
+
+      // Users can create their own profile during registration
+      // Cannot self-assign an executive/admin role
+      allow create: if isAuthenticated() &&
+        request.auth.uid == userId &&
+        (request.resource.data.get('role', 'member') == 'member');
+
+      // Users can update their own profile; admins can update any user (including roles)
+      // Standard members cannot escalate their role to executive/admin
+      allow update: if isAuthenticated() && (
+        isAdmin() || (
+          request.auth.uid == userId &&
+          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) ||
+           request.resource.data.role == resource.data.role)
+        )
+      );
+
+      // Only admins can delete accounts
+      allow delete: if isAdmin();
+    }
+
+    // ── Posts Collection ───────────────────────────────────────────
+    match /posts/{postId} {
+      allow read: if isVerified();
+
+      allow create: if isVerified() &&
+        request.resource.data.authorUid == request.auth.uid &&
+        request.resource.data.body is string &&
+        request.resource.data.body.size() > 0 &&
+        request.resource.data.body.size() <= 500;
+
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (isVerified() && resource.data.authorUid == request.auth.uid) ||
+        (isVerified() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']))
+      );
+
+      allow delete: if isAdmin() || (isVerified() && resource.data.authorUid == request.auth.uid);
+
+      // Comments Subcollection
+      match /comments/{commentId} {
+        allow read: if isVerified();
+
+        allow create: if isVerified() &&
+          request.resource.data.authorUid == request.auth.uid &&
+          request.resource.data.text is string &&
+          request.resource.data.text.size() > 0;
+
+        allow update: if isVerified() &&
+          resource.data.authorUid == request.auth.uid;
+
+        allow delete: if isAdmin() || (
+          isVerified() && (
+            resource.data.authorUid == request.auth.uid ||
+            get(/databases/$(database)/documents/posts/$(postId)).data.authorUid == request.auth.uid
+          )
+        );
+      }
+    }
+
+    // ── Notifications Collection ───────────────────────────────────
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && resource.data.recipientUid == request.auth.uid;
+
+      // Allow authenticated user to create a notification for another user
+      allow create: if isAuthenticated() &&
+        request.resource.data.senderUid == request.auth.uid &&
+        request.resource.data.recipientUid != request.auth.uid;
+
+      // Allow recipient to mark notification as read
+      allow update: if isAuthenticated() &&
+        resource.data.recipientUid == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+
+      // Allow recipient to delete their notification
+      allow delete: if isAuthenticated() && resource.data.recipientUid == request.auth.uid;
+    }
+
+    // ── Events Collection ──────────────────────────────────────────
+    match /events/{eventId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── Current Executives Collection ──────────────────────────────
+    match /executives/{execId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── Past Executives Collection ─────────────────────────────────
+    match /past_executives/{execId} {
+      allow read: if isVerified();
+      allow write: if isAdmin();
+    }
+
+    // ── Site Settings Collection ───────────────────────────────────
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

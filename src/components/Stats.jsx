@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import { db } from '../firebase';
-import { collection, getCountFromServer, query, where } from 'firebase/firestore';
+import { collection, getCountFromServer, getDocs, query, where } from 'firebase/firestore';
 import { stats as staticStats } from '../data/site.js';
 
 /**
  * Stats strip.
- * The first stat (Enrolled Members) is fetched live from Firestore by counting
- * users where isVerified == true. The remaining two stats stay static from
- * site.js. Falls back to '—' gracefully if Firestore is unavailable.
+ * The first stat (Enrolled Members) is fetched dynamically from Firestore by counting
+ * users where isVerified == true. Falls back gracefully if Firestore is unavailable.
  */
 export default function Stats() {
   const [verifiedCount, setVerifiedCount] = useState(null);
@@ -16,10 +15,14 @@ export default function Stats() {
     if (!db) return;
     (async () => {
       try {
-        const snap = await getCountFromServer(
-          query(collection(db, 'users'), where('isVerified', '==', true))
-        );
-        setVerifiedCount(snap.data().count);
+        const q = query(collection(db, 'users'), where('isVerified', '==', true));
+        try {
+          const snap = await getCountFromServer(q);
+          setVerifiedCount(snap.data().count);
+        } catch {
+          const snap = await getDocs(q);
+          setVerifiedCount(snap.size);
+        }
       } catch (err) {
         console.warn('[Stats] Could not fetch member count:', err.message);
       }

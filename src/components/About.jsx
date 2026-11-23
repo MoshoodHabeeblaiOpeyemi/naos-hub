@@ -59,8 +59,8 @@ export default function About() {
 
         <p className="mx-auto mt-10 max-w-3xl text-center text-naos-text/70">
           Our guiding principle is{' '}
-          <span className="font-semibold text-naos-green">{site.motto}</span> —
-          be proactive. The full governing document is available in the{' '}
+          <span className="font-semibold text-naos-green">{site.motto}</span>.
+          The full governing document is available in the{' '}
           <a
             href="#constitution"
             className="font-semibold text-naos-green underline decoration-naos-gold decoration-2 underline-offset-2"

@@ -56,15 +56,13 @@ export const site = {
   },
 
   contact: {
-    /**
-     * TEMPORARY — holds the outgoing Vice-President's details until the
-     * Executive hands over the official NAOS contact. Swap before launch.
-     */
+    proChatDisplay: '+234 704 071 7939',
+    proChatNumber: '2347040717939',
     whatsappDisplay: '+234 704 071 7939',
     whatsappNumber: '2347040717939',
+    whatsappChannel: 'https://whatsapp.com/channel/0029VbBUBc08kyyTIiWezH0l',
+    whatsappChannelLabel: 'WhatsApp Channel',
     email: null,
-    linkedin: 'https://linkedin.com/in/moshood-habeeblai-967b14294',
-    linkedinHandle: 'linkedin.com/in/moshood-habeeblai',
     address: ['University of Ilorin', 'Ilorin, Kwara State', 'Nigeria'],
   },
 
@@ -92,7 +90,7 @@ export const site = {
 
 /** Headline numbers on the stats strip. All figures are placeholders. */
 export const stats = [
-  { label: 'Members enrolled', value: '—', note: 'Awaiting Gen Sec figure' },
+  { label: 'Members enrolled', value: '—', note: 'Verified members' },
   { label: 'University chapter', value: '1', note: 'University of Ilorin' },
-  { label: 'Motto', value: 'Ajíṣẹ̀', note: 'Be proactive' },
+  { label: 'Motto', value: 'Ajise bi Oyo Laari', note: 'Official Motto' },
 ];
